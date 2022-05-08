@@ -1,0 +1,18 @@
+[Unit]
+Description=%j #%i Lobby Idle Service
+ConditionPathExists=/opt/snap-gs/%j/%i/stat/idle
+BindsTo=gs.snap.lobby-%j@%i.service
+After=gs.snap.lobby-%j@%i.service
+RefuseManualStart=true
+
+
+[Service]
+Type=exec
+Environment=SNAPGS_CPUQUOTA_IDLE=10
+Environment=SNAPGS_CPUQUOTA_BUSY=100
+EnvironmentFile=-/opt/snap-gs/%j/%i/env
+ExecStart=-/usr/bin/inotifywait --quiet --event move_self --event delete_self /opt/snap-gs/%j/%i/stat/idle
+ExecStartPre=/usr/bin/systemctl set-property --runtime \
+	gs.snap.lobby-%j@%i.service CPUQuotaPeriodSec=10ms CPUQuota=${SNAPGS_CPUQUOTA_IDLE}%%
+ExecStopPost=/usr/bin/systemctl set-property --runtime \
+	gs.snap.lobby-%j@%i.service CPUQuotaPeriodSec=1ms CPUQuota=${SNAPGS_CPUQUOTA_BUSY}%%

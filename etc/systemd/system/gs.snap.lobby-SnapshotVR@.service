@@ -1,0 +1,64 @@
+[Unit]
+Description=%j #%i Lobby Service
+AssertPathExists=/opt/snap-gs/%j/%i
+ConditionPathExists=|/opt/snap-gs/%j/%i/spec/up
+ConditionPathExists=|!/opt/snap-gs/%j/%i/spec/stop
+ConditionPathExists=!/opt/snap-gs/%j/%i/spec/down
+After=network-online.target
+
+
+[Service]
+# Context/Defaults.
+Type=exec
+User=snap-gs
+Group=snap-gs
+WorkingDirectory=/opt/snap-gs/%j/%i
+EnvironmentFile=-/opt/snap-gs/%j/%i/env
+Environment=HOME=/opt/snap-gs/%j/%i
+Environment=SNAPGS_LOBBY_DEBUG=true
+Environment=SNAPGS_LOBBY_LOGDIR=logs
+Environment=SNAPGS_LOBBY_MATCHDIR=logs
+Environment=SNAPGS_LOBBY_SPECDIR=spec
+Environment=SNAPGS_LOBBY_STATDIR=stat
+Environment=SNAPGS_LOBBY_ROOMNAME=%N
+Environment=SNAPGS_LOBBY_PASSWORD=%N
+Environment=SNAPGS_LOBBY_ADMINTIMEOUT=15m
+Environment=SNAPGS_LOBBY_TIMEOUT=15h
+Environment=SNAPGS_CPUQUOTA_IDLE=10
+Environment=SNAPGS_CPUQUOTA_BUSY=100
+ExecStartPre=!/usr/bin/systemctl set-property --runtime %n CPUQuotaPeriodSec=1ms CPUQuota=${SNAPGS_CPUQUOTA_BUSY}%%
+ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/SteamApps/common
+ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/appcache
+ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/config
+ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/logs
+ExecStartPre=/usr/bin/mkdir -p ${HOME}/.steam
+ExecStartPre=/usr/bin/ln -s -f -T ${HOME}/.local/share/Steam ${HOME}/.steam/root
+ExecStartPre=/usr/bin/ln -s -f -T ${HOME}/.local/share/Steam ${HOME}/.steam/steam
+ExecStartPre=/usr/games/steamcmd +login\sanonymous +app_update\s1948990\svalidate +quit
+ExecStartPre=/usr/bin/cp -a /opt/snap-gs/%j/snap-gs /opt/snap-gs/%j/%i/snap-gs
+ExecStart=/opt/snap-gs/%j/%i/snap-gs lobby \
+  --admintimeout=${SNAPGS_LOBBY_ADMINTIMEOUT} \
+  --timeout=${SNAPGS_LOBBY_TIMEOUT} \
+  --debug=${SNAPGS_LOBBY_DEBUG} \
+  --logdir=${SNAPGS_LOBBY_LOGDIR} \
+  --matchdir=${SNAPGS_LOBBY_MATCHDIR} \
+  --specdir=${SNAPGS_LOBBY_SPECDIR} \
+  --statdir=${SNAPGS_LOBBY_STATDIR} \
+  --roomname=${SNAPGS_LOBBY_ROOMNAME} \
+  --password=${SNAPGS_LOBBY_PASSWORD}
+
+# Latency/Availability.
+CPUQuotaPeriodSec=1ms
+CPUQuota=100%
+Nice=-3
+
+# Isolation/Security.
+BindPaths=/opt/snap-gs/%j/%i
+RemoveIPC=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHostname=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+CapabilityBoundingSet=

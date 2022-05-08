@@ -1,0 +1,14 @@
+[Unit]
+Description=%j #%i Lobby Idle Path
+AssertPathExists=/usr/bin/inotifywait
+
+
+[Install]
+RequiredBy=gs.snap.lobby-%j@%i.service
+
+
+[Path]
+PathExists=/opt/snap-gs/%j/%i/stat/idle
+PathChanged=/opt/snap-gs/%j/%i/stat/idle
+PathModified=/opt/snap-gs/%j/%i/stat/idle
+PathExistsGlob=/opt/snap-gs/%j/%i/stat/idle
