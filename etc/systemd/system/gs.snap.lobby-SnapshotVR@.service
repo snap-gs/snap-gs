@@ -1,9 +1,10 @@
 [Unit]
 Description=%j #%i Lobby Service
 AssertPathExists=/opt/snap-gs/%j/%i
-ConditionPathExists=|/opt/snap-gs/%j/%i/spec/up
-ConditionPathExists=|!/opt/snap-gs/%j/%i/spec/stop
+# Deny if 'down' exists. Allow if 'stop' is missing, or 'up' is not.
 ConditionPathExists=!/opt/snap-gs/%j/%i/spec/down
+ConditionPathExists=|!/opt/snap-gs/%j/%i/spec/stop
+ConditionPathExists=|/opt/snap-gs/%j/%i/spec/up
 After=network-online.target
 
 
@@ -15,6 +16,7 @@ Group=snap-gs
 WorkingDirectory=/opt/snap-gs/%j/%i
 EnvironmentFile=-/opt/snap-gs/%j/%i/env
 Environment=HOME=/opt/snap-gs/%j/%i
+Environment=SteamAppId=1948990
 Environment=SNAPGS_LOBBY_DEBUG=true
 Environment=SNAPGS_LOBBY_LOGDIR=logs
 Environment=SNAPGS_LOBBY_MATCHDIR=logs
@@ -34,7 +36,7 @@ ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/logs
 ExecStartPre=/usr/bin/mkdir -p ${HOME}/.steam
 ExecStartPre=/usr/bin/ln -s -f -T ${HOME}/.local/share/Steam ${HOME}/.steam/root
 ExecStartPre=/usr/bin/ln -s -f -T ${HOME}/.local/share/Steam ${HOME}/.steam/steam
-ExecStartPre=/usr/games/steamcmd +login\sanonymous +app_update\s1948990\svalidate +quit
+ExecStartPre=/usr/games/steamcmd +login\sanonymous +app_update\s${SteamAppId}\svalidate +quit
 ExecStartPre=/usr/bin/cp -a /opt/snap-gs/%j/snap-gs /opt/snap-gs/%j/%i/snap-gs
 ExecStart=/opt/snap-gs/%j/%i/snap-gs lobby \
   --admintimeout=${SNAPGS_LOBBY_ADMINTIMEOUT} \

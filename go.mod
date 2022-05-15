@@ -5,6 +5,7 @@ go 1.17
 replace github.com/snap-gs/snap-gs => ./
 
 require (
+	github.com/pkg/xattr v0.4.7
 	github.com/shirou/gopsutil/v3 v3.22.3
 	github.com/spf13/cobra v1.3.0
 	github.com/spf13/pflag v1.0.5
@@ -18,5 +19,5 @@ require (
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
-	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27 // indirect
+	golang.org/x/sys v0.0.0-20220408201424-a24fb2fb8a0f // indirect
 )

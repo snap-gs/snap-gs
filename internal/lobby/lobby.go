@@ -57,6 +57,7 @@ type Lobby struct {
 	matches chan Match
 	players Players
 
+	stdx   sync.Mutex
 	stdout io.Writer
 	stderr io.Writer
 
@@ -214,18 +215,37 @@ func (l *Lobby) runc(ctx context.Context, stdout, stderr io.Writer, exe string, 
 
 func (l *Lobby) errorf(format string, a ...interface{}) {
 	if l.Debug {
-		log.Debugf(l.stderr, "Lobby."+format, a...)
-	} else {
-		log.Errorf(l.stderr, "Lobby."+format, a...)
+		l.debugf(format, a...)
+		return
 	}
+	l.stdx.Lock()
+	defer l.stdx.Unlock()
+	log.Errorf(l.stderr, "Lobby."+format, a...)
 }
 
 func (l *Lobby) debugf(format string, a ...interface{}) {
-	if l.Debug {
-		log.Debugf(l.stderr, "Lobby."+format, a...)
+	if !l.Debug {
+		return
 	}
+	l.stdx.Lock()
+	defer l.stdx.Unlock()
+	log.Debugf(l.stderr, "Lobby."+format, a...)
 }
 
 func (l *Lobby) infof(format string, a ...interface{}) {
+	l.stdx.Lock()
+	defer l.stdx.Unlock()
 	log.Infof(l.stderr, "Lobby."+format, a...)
+}
+
+func (l *Lobby) logvout(bs []byte) {
+	l.stdx.Lock()
+	defer l.stdx.Unlock()
+	log.Logv(l.stdout, log.N1, bs)
+}
+
+func (l *Lobby) logverr(bs []byte) {
+	l.stdx.Lock()
+	defer l.stdx.Unlock()
+	log.Logv(l.stderr, log.N2, bs)
 }

@@ -2,11 +2,22 @@ package lobby
 
 import (
 	"compress/gzip"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/pkg/xattr"
 )
+
+type syncmeta struct {
+	ContentType        string `json:"content_type,omitempty"`
+	ContentDisposition string `json:"content_disposition,omitempty"`
+	ContentLanguage    string `json:"content_language,omitempty"`
+	ContentEncoding    string `json:"content_encoding,omitempty"`
+	CacheControl       string `json:"cache_control,omitempty"`
+}
 
 func (l *Lobby) collect() {
 	if l.m.id == "" {
@@ -56,6 +67,16 @@ func (l *Lobby) collector() {
 		return
 	}
 	defer l.cancel()
+	sm, err := json.Marshal(syncmeta{
+		ContentType:        "application/json",
+		ContentDisposition: "inline",
+		ContentLanguage:    "en-US",
+		ContentEncoding:    "gzip",
+	})
+	if err != nil {
+		l.errorf("collector: json.Marshal: err=%+v", err)
+		return
+	}
 	for m := range l.matches {
 		// Windows does not allow ':' in the filename.
 		ts := strings.ReplaceAll(m.at.Format(time.RFC3339Nano), ":", "_")
@@ -67,18 +88,21 @@ func (l *Lobby) collector() {
 			return
 		}
 		wz := gzip.NewWriter(w)
-		errs := make([]error, 4)
+		errs := make([]error, 5)
 		_, errs[0] = wz.Write(m.bs)
 		errs[1] = wz.Close()
 		errs[2] = w.Close()
-		errs[3] = os.Rename(file+".lock", file)
+		errs[3] = xattr.Set(file+".lock", "user.s3sync.meta", sm)
+		errs[4] = os.Rename(file+".lock", file)
 		for i := range errs {
 			if errs[i] != nil {
 				l.errorf("collector: wz.Write: err=%+v", errs[0])
 				l.errorf("collector: wz.Close: err=%+v", errs[1])
 				l.errorf("collector: w.Close: err=%+v", errs[2])
-				l.errorf("collector: os.Rename: err=%+v", errs[3])
-				return
+				l.errorf("collector: xattr.Set: err=%+v", errs[3])
+				l.errorf("collector: os.Rename: err=%+v", errs[4])
+				l.cancel()
+				break
 			}
 		}
 	}

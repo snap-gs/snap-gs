@@ -11,8 +11,10 @@ Type=exec
 Environment=SNAPGS_CPUQUOTA_IDLE=10
 Environment=SNAPGS_CPUQUOTA_BUSY=100
 EnvironmentFile=-/opt/snap-gs/%j/%i/env
-ExecStart=-/usr/bin/inotifywait --quiet --event move_self --event delete_self /opt/snap-gs/%j/%i/stat/idle
-ExecStartPre=/usr/bin/systemctl set-property --runtime \
-	gs.snap.lobby-%j@%i.service CPUQuotaPeriodSec=10ms CPUQuota=${SNAPGS_CPUQUOTA_IDLE}%%
+StandardInput=data
+StandardInputText=systemctl set-property --runtime "$1" CPUQuotaPeriodSec=10ms CPUQuota=${SNAPGS_CPUQUOTA_IDLE}%%
+StandardInputText=inotifywait --quiet --event move_self --event delete_self "$2"
+StandardInputText=systemctl set-property --runtime "$1" CPUQuotaPeriodSec=1ms CPUQuota=${SNAPGS_CPUQUOTA_BUSY}%%
+ExecStart=-/usr/bin/bash -xs gs.snap.lobby-%j@%i.service /opt/snap-gs/%j/%i/stat/idle
 ExecStopPost=/usr/bin/systemctl set-property --runtime \
 	gs.snap.lobby-%j@%i.service CPUQuotaPeriodSec=1ms CPUQuota=${SNAPGS_CPUQUOTA_BUSY}%%

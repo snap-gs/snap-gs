@@ -7,7 +7,7 @@ WantedBy=multi-user.target
 
 
 [Path]
-PathExists=/opt/snap-gs/%j/%i/spec/peer/full
-PathChanged=/opt/snap-gs/%j/%i/spec/peer/full
-PathModified=/opt/snap-gs/%j/%i/spec/peer/full
-PathExistsGlob=/opt/snap-gs/%j/%i/spec/peer/full
+PathExists=/opt/snap-gs/%j/%i/peer/full
+PathChanged=/opt/snap-gs/%j/%i/peer/full
+PathModified=/opt/snap-gs/%j/%i/peer/full
+PathExistsGlob=/opt/snap-gs/%j/%i/peer/full

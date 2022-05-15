@@ -2,6 +2,7 @@
 
 IFS=; set -euo pipefail
 
+: ${SNAPGS_INSTALL_S3SYNCURL:=https://github.com/larrabee/s3sync/releases/download/2.34/s3sync_2.34_Linux_x86_64.tar.gz}
 : ${SNAPGS_INSTALL_LOBBIES:=$(seq -s, $(lscpu --parse=CPU | grep -c '^[0-9]'))}
 IFS=, read -r -a SNAPGS_INSTALL_LOBBIES <<<$SNAPGS_INSTALL_LOBBIES
 
@@ -13,6 +14,10 @@ main () {
 		sudo debconf-set-selections <<<'steam steam/question select I AGREE'
 		sudo apt install --yes --no-install-recommends golang-go git inotify-tools steamcmd
 	fi
+	if ! (command -v s3sync) > /dev/null; then
+		curl -sL $SNAPGS_INSTALL_S3SYNCURL |
+			sudo tar --extract --gunzip --no-same-owner --directory=/usr/local/bin -- s3sync
+	fi
 	if ! id -u snap-gs > /dev/null; then
 		sudo useradd --user-group --create-home --home-dir /opt/snap-gs --shell /usr/sbin/nologin --uid 1001 snap-gs
 	fi
@@ -21,29 +26,27 @@ main () {
 		let 'i=SNAPGS_INSTALL_LOBBIES[k]'
 
 		sudo -u snap-gs mkdir -p /opt/snap-gs/SnapshotVR/$i/{stat,spec}
-		sudo -u snap-gs ln -s -f -T peer/full /opt/snap-gs/SnapshotVR/$i/spec/up
-		sudo -u snap-gs ln -s -f -T peer/idle /opt/snap-gs/SnapshotVR/$i/spec/down
 		sudo -u snap-gs ln -s -f -T ../../snap-gs /opt/snap-gs/SnapshotVR/$i/spec/restart
-		case $k in
-		0)
-			sudo -u snap-gs ln -s -f -T peer/up /opt/snap-gs/SnapshotVR/$i/spec/stop
-			if [[ ${#SNAPGS_INSTALL_LOBBIES[@]} -eq 1 ]] ; then
-				sudo -u snap-gs rm -f /opt/snap-gs/SnapshotVR/$i/spec/peer
+		if [[ ${#SNAPGS_INSTALL_LOBBIES[@]} -eq 1 ]] ; then
+			sudo -u snap-gs rm -f /opt/snap-gs/SnapshotVR/$i/{self,peer}
+			sudo -u snap-gs rm -f /opt/snap-gs/SnapshotVR/$i/spec/{up,down,stop}
+		else
+			sudo -u snap-gs ln -s -f -T stat /opt/snap-gs/SnapshotVR/$i/self
+			sudo -u snap-gs ln -s -f -T ../peer/full /opt/snap-gs/SnapshotVR/$i/spec/up
+			sudo -u snap-gs ln -s -f -T ../peer/idle /opt/snap-gs/SnapshotVR/$i/spec/down
+			if [[ $k -eq 0 ]]; then
+				sudo -u snap-gs ln -s -f -T ../peer/up /opt/snap-gs/SnapshotVR/$i/spec/stop
+				sudo -u snap-gs ln -s -f -T ../$((SNAPGS_INSTALL_LOBBIES[-1]))/self /opt/snap-gs/SnapshotVR/$i/peer
 			else
-				sudo -u snap-gs ln -s -f -T ../../$((SNAPGS_INSTALL_LOBBIES[-1]))/stat /opt/snap-gs/SnapshotVR/$i/spec/peer
+				sudo -u snap-gs ln -s -f -T /dev/null /opt/snap-gs/SnapshotVR/$i/spec/stop
+				sudo -u snap-gs ln -s -f -T ../$((SNAPGS_INSTALL_LOBBIES[k-1]))/self /opt/snap-gs/SnapshotVR/$i/peer
 			fi
-			;;
-		*)
-			sudo -u snap-gs ln -s -f -T /dev/null /opt/snap-gs/SnapshotVR/$i/spec/stop
-			if [[ ${#SNAPGS_INSTALL_LOBBIES[@]} -gt 1 ]] ; then
-				sudo -u snap-gs ln -s -f -T ../../$((SNAPGS_INSTALL_LOBBIES[k-1]))/stat /opt/snap-gs/SnapshotVR/$i/spec/peer
-			fi
-			;;
-		esac
+		fi
 
 		unset ${!SNAPGS_LOBBY_@}
 		SNAPGS_LOBBY_ROOMNAME=
 		SNAPGS_LOBBY_PASSWORD=
+		SNAPGS_LOBBY_ADMINTIMEOUT=
 		if sudo -u snap-gs test -e /opt/snap-gs/SnapshotVR/$i/env; then
 			while read -r; do
 				declare "${REPLY%%=*}=${REPLY##*=}"
@@ -58,7 +61,13 @@ main () {
 		if [[ $SNAPGS_LOBBY_ROOMNAME == */ ]]; then
 			SNAPGS_LOBBY_ROOMNAME=$SNAPGS_LOBBY_ROOMNAME$i
 		fi
-		printf "SNAPGS_LOBBY_%s=%s\n" ROOMNAME "$SNAPGS_LOBBY_ROOMNAME" PASSWORD "$SNAPGS_LOBBY_PASSWORD" |
+		if [[ $SNAPGS_LOBBY_PASSWORD ]]; then
+			SNAPGS_LOBBY_ADMINTIMEOUT=15h
+		else
+			SNAPGS_LOBBY_ADMINTIMEOUT=15m
+		fi
+		printf "SNAPGS_LOBBY_%s=%s\n" \
+				ROOMNAME "$SNAPGS_LOBBY_ROOMNAME" PASSWORD "$SNAPGS_LOBBY_PASSWORD" ADMINTIMEOUT "$SNAPGS_LOBBY_ADMINTIMEOUT" |
 			sudo -u snap-gs tee /opt/snap-gs/SnapshotVR/$i/env
 
 	done
@@ -80,9 +89,11 @@ main () {
 	for i in ${SNAPGS_INSTALL_LOBBIES[@]}; do
 		sudo systemctl enable --now gs.snap.lobby.idle-SnapshotVR@$i.path
 		sudo systemctl enable --now gs.snap.lobby-SnapshotVR@$i.path
-		case $i in
-		1) sudo systemctl enable --now gs.snap.lobby-SnapshotVR@$i.timer ;;
-		esac
+		if [[ $i == 1 || ${1-} == VRML* || ${1-} == VXL* ]]; then
+			sudo systemctl enable --now gs.snap.lobby-SnapshotVR@$i.timer
+		else
+			sudo systemctl disable --now gs.snap.lobby-SnapshotVR@$i.timer
+		fi
 	done
 }
 

@@ -1,6 +1,7 @@
 package log
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"strconv"
@@ -10,12 +11,12 @@ import (
 type Prefix [2]byte
 
 var (
-	TT = Prefix{'T', ':'}
-	DD = Prefix{'D', ':'}
-	II = Prefix{'I', ':'}
-	WW = Prefix{'W', ':'}
-	EE = Prefix{'E', ':'}
-	FF = Prefix{'F', ':'}
+	TT = Prefix{'T', 'T'}
+	DD = Prefix{'D', 'D'}
+	II = Prefix{'I', 'I'}
+	WW = Prefix{'W', 'W'}
+	EE = Prefix{'E', 'E'}
+	FF = Prefix{'F', 'F'}
 
 	N0 = Prefix{'0', '<'}
 	N1 = Prefix{'1', '>'}
@@ -28,70 +29,48 @@ var (
 	N8 = Prefix{'8', '>'}
 	N9 = Prefix{'9', '>'}
 
-	sp = []byte(" ")
-	nl = []byte("\n")
+	Line = Prefix{}
+	More = []byte(nil)
 
 	t = time.Now()
 )
 
-func Uptime() time.Duration {
-	return time.Since(t)
-}
-
-func format(c [2]byte, d []byte, s string) string {
-	return fmt.Sprintf("%s %s %s\n", c, d, s)
-}
-
-// FormatDuration fixed-width formats duration with best-fit precision.
-func FormatDuration(d time.Duration) []byte {
-	dur := [15]byte{'0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', 's'}
-	dot := 9
-	switch {
-	case d < 10*time.Second:
-		dot--
-		fallthrough
-	case d < time.Minute:
-		dot -= 2
-		fallthrough
-	case d < 10*time.Minute:
-		dot--
-		fallthrough
-	case d < time.Hour:
-		dot -= 2
-		fallthrough
-	case d < 10*time.Hour:
-		dot--
-		fallthrough
-	case d < 100*time.Hour:
-		dot--
-	case d < 1000*time.Hour:
-	default:
-		d %= 1000 * time.Hour
+// uptime fixed-width-format uptime with best-fit precision.
+func uptime() []byte {
+	const maxDuration = 1000000 * time.Hour
+	d := time.Since(t)
+	if d >= maxDuration {
+		d -= maxDuration
 	}
-	dur[dot] = '.'
+	var bs [15]byte
+	buf := bs[:0]
 	switch {
 	case d >= time.Hour:
-		buf := strconv.AppendInt(nil, int64(d/time.Hour), 10)
-		copy(dur[dot-6-len(buf):dot-6], buf)
+		buf = strconv.AppendInt(buf, int64(d/time.Hour), 10)
+		buf = append(buf, 'h')
 		d %= time.Hour
-		dur[dot-6] = 'h'
 		fallthrough
 	case d >= time.Minute:
-		buf := strconv.AppendInt(nil, int64(d/time.Minute), 10)
-		copy(dur[dot-3-len(buf):dot-3], buf)
+		if len(buf) != 0 && d < time.Minute*10 {
+			buf = append(buf, '0')
+		}
+		buf = strconv.AppendInt(buf, int64(d/time.Minute), 10)
+		buf = append(buf, 'm')
 		d %= time.Minute
-		dur[dot-3] = 'm'
-		fallthrough
-	case d >= time.Second:
-		buf := strconv.AppendInt(nil, int64(d/time.Second), 10)
-		copy(dur[dot-len(buf):dot], buf)
-		d %= time.Second
 		fallthrough
 	default:
-		buf := strconv.AppendInt(nil, int64(d), 10)
-		copy(dur[dot+1:len(dur)-1], buf)
+		prec := cap(buf) - len(buf) - 4
+		if d < time.Second*10 {
+			if len(buf) != 0 {
+				buf = append(buf, '0')
+			} else {
+				prec++
+			}
+		}
+		buf = strconv.AppendFloat(buf, d.Seconds(), 'f', prec, 64)
+		buf = append(buf, 's')
 	}
-	return dur[:]
+	return buf
 }
 
 func Errorf(w io.Writer, s string, a ...interface{}) {
@@ -115,14 +94,39 @@ func Warnf(w io.Writer, s string, a ...interface{}) {
 }
 
 func Logf(w io.Writer, p Prefix, s string, a ...interface{}) {
-	fmt.Fprintf(w, format(p, FormatDuration(Uptime()), s), a...)
+	var buf bytes.Buffer
+	_, _ = fmt.Fprintf(&buf, s, a...)
+	Logv(w, p, buf.Bytes())
 }
 
-func Log(w io.Writer, p Prefix, d time.Duration, bs []byte) {
-	_, _ = w.Write(p[:])
-	_, _ = w.Write(sp)
-	_, _ = w.Write(FormatDuration(d))
-	_, _ = w.Write(sp)
-	_, _ = w.Write(bs)
-	_, _ = w.Write(nl)
+func Logv(w io.Writer, p Prefix, iov ...[]byte) {
+	var buf = [20 + 1004]byte{
+		p[0], p[1], ' ', '0', '.', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', 's', ' ', '\n',
+	}
+	i := 19
+	if p != Line {
+		copy(buf[3:18], uptime())
+		i = 0
+	}
+	if len(iov) == 0 {
+		_, _ = w.Write(buf[i:20])
+		return
+	}
+	if len(iov) == 1 && len(iov[0]) != 0 && 19+len(iov[0]) < len(buf) {
+		copy(buf[19:], iov[0])
+		buf[19+len(iov[0])] = '\n'
+		_, _ = w.Write(buf[i : 19+len(iov[0])+1])
+		return
+	}
+	if i != 19 {
+		_, _ = w.Write(buf[i:19])
+	}
+	for _, bs := range iov {
+		if len(bs) != 0 {
+			_, _ = w.Write(bs)
+		}
+	}
+	if iov[len(iov)-1] != nil {
+		_, _ = w.Write(buf[19:20])
+	}
 }

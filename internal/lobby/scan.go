@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-
-	"github.com/snap-gs/snap-gs/internal/log"
 )
 
 var stdoutIgnorePrefixes = [][]byte{
@@ -234,17 +232,16 @@ func (l *Lobby) scanner(fd int) {
 	defer l.debugf("scanner: done")
 	defer l.cancel()
 	var r io.Reader
-	var w io.Writer
-	var p log.Prefix
+	var w func([]byte)
 	switch fd {
 	case 1:
 		defer close(l.matches)
 		defer l.collect()
 		defer l.prout.Close()
-		r, w, p = l.prout, l.stdout, log.N1
+		r, w = l.prout, l.logvout
 	case 2:
 		defer l.prerr.Close()
-		r, w, p = l.prerr, l.stderr, log.N2
+		r, w = l.prerr, l.logverr
 	default:
 		return
 	}
@@ -259,7 +256,7 @@ func (l *Lobby) scanner(fd int) {
 		if len(bs) == 0 {
 			continue
 		}
-		log.Log(w, p, log.Uptime(), bs)
+		w(bs)
 	}
 	if s.Err() != nil {
 		l.errorf("scanner: err=%+v fd=%d", s.Err(), fd)
