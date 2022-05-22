@@ -69,7 +69,7 @@ func (l *Lobby) filter(fd int, bs []byte) ([]byte, error) {
 	}
 	const (
 		bolt   = "-- BOLT -- "
-		upload = "Upload complete!"
+		upload = "Upload complete"
 		ppool  = "Finished populating pool"
 		arena  = "Received request for ArenaSpecName "
 		nosess = "Failed to create session"
@@ -102,7 +102,7 @@ func (l *Lobby) filter(fd int, bs []byte) ([]byte, error) {
 
 func (l *Lobby) filterjson(fd int, bs []byte) ([]byte, error) {
 	const trunc = 66
-	if l.MatchDir == "" {
+	if l.LogDir == "" {
 		l.debugf("filterjson: discard")
 		return truncate(bs, trunc), nil
 	}
@@ -180,7 +180,7 @@ func (l *Lobby) filterbolt(fd int, bs []byte) ([]byte, error) {
 			// bots < 1000 < players
 			l.changed = true
 		}
-		if admin && l.m.id == "" {
+		if admin && l.m.MatchID == "" {
 			// Reset admin timeout when admin changes.
 			l.collect()
 		}
@@ -218,7 +218,7 @@ func (l *Lobby) filterbolt(fd int, bs []byte) ([]byte, error) {
 			l.changed = true
 		}
 	case bytes.HasPrefix(bs, []byte(gameStateChanged)):
-		if l.m.id == "" {
+		if l.m.MatchID == "" {
 			// Admin timeout otherwise relies on a speedy first kill in round 1.
 			l.collect()
 		}
@@ -246,11 +246,11 @@ func (l *Lobby) scanner(fd int) {
 		return
 	}
 	s := bufio.NewScanner(r)
-	s.Buffer(make([]byte, SetPipeSize), SetPipeSize)
+	s.Buffer(make([]byte, pipesz), pipesz)
 	for s.Scan() {
 		bs, err := l.filter(fd, s.Bytes())
 		if err != nil {
-			l.errorf("scanner: filter: err=%+v fd=%d", err, fd)
+			l.errorf("scanner: filter: error: %+v fd=%d", err, fd)
 			continue
 		}
 		if len(bs) == 0 {
@@ -259,6 +259,6 @@ func (l *Lobby) scanner(fd int) {
 		w(bs)
 	}
 	if s.Err() != nil {
-		l.errorf("scanner: err=%+v fd=%d", s.Err(), fd)
+		l.errorf("scanner: error: %+v fd=%d", s.Err(), fd)
 	}
 }

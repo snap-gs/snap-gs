@@ -9,101 +9,130 @@ import (
 	"time"
 
 	"github.com/pkg/xattr"
+	"github.com/snap-gs/snap-gs/internal/match"
+	"github.com/snap-gs/snap-gs/internal/sync"
 )
 
-type syncmeta struct {
-	ContentType        string `json:"content_type,omitempty"`
-	ContentDisposition string `json:"content_disposition,omitempty"`
-	ContentLanguage    string `json:"content_language,omitempty"`
-	ContentEncoding    string `json:"content_encoding,omitempty"`
-	CacheControl       string `json:"cache_control,omitempty"`
-}
-
-func (l *Lobby) collect() {
-	if l.m.id == "" {
-		l.m.at = time.Now().In(time.UTC)
-		return
-	}
-	select {
-	case l.matches <- l.m:
-		l.debugf("collect: id=%s", l.m.id)
-	default:
-		l.errorf("collect: discard (queue full): id=%s", l.m.id)
-	}
-	l.m = Match{at: time.Now().In(time.UTC)}
-	l.remstat("match")
-}
+// rfc3339nano is a fixed-width version of time.RFC3339Nano.
+const rfc3339nano = "2006-01-02T15:04:05.000000000Z07:00"
 
 func (l *Lobby) enqueue(id string, match []byte) {
-	defer func() { l.setstat("match", l.m.bs) }()
-	bs := make([]byte, len(match)+36)
-	copy(bs[36:], match)
-	if l.m.id == id {
-		copy(bs[:37], l.m.bs)
-		l.m.bs = bs
+	const prefix, suffix = `{"@timestamp":"`, `",`
+	// Extra -5 drops unused TZ and -1 overwrites '{' with ','.
+	const offset = len(prefix) + len(rfc3339nano) + len(suffix) - 6
+	defer func() { l.setstat("match", l.mbs) }()
+	bs := make([]byte, len(match)+offset)
+	copy(bs[offset:], match)
+	if l.m.MatchID == id {
+		copy(bs[:offset+1], l.mbs)
+		l.mbs = bs
 		return
 	}
 	l.collect()
-	l.m.id = id
+	l.m.MatchID = id
 	const layout = "01/02/2006 15:04:05"
-	i := strings.Index(l.m.id, l.session)
-	if i == -1 || i == len(l.m.id)-len(l.session) {
-		l.m.at = time.Now().In(time.UTC)
-	} else if t, err := time.ParseInLocation(layout, l.m.id[i+len(l.session):], time.Local); err != nil {
-		l.errorf("enqueue: time.ParseInLocation: err=%+v", err)
-		l.m.at = time.Now().In(time.UTC)
+	i := strings.Index(l.m.MatchID, l.session)
+	if i == -1 || i == len(l.m.MatchID)-len(l.session) {
+		l.m.Timestamp = time.Now().UTC()
+	} else if t, err := time.Parse(layout, l.m.MatchID[i+len(l.session):]); err != nil {
+		l.errorf("enqueue: time.Parse: error: %+v", err)
+		l.m.Timestamp = time.Now().UTC()
 	} else {
-		l.m.at = t.In(time.UTC)
+		l.m.Timestamp = t.UTC()
 	}
-	copy(bs[:37], []byte(`{"@timestamp":"`+l.m.at.Format(time.RFC3339)+`",`))
-	l.m.bs = bs
+	copy(bs[:offset+1], []byte(prefix+l.m.Timestamp.Format(rfc3339nano)+suffix))
+	l.mbs = bs
+}
+
+func (l *Lobby) collect() {
+	if l.m.MatchID == "" {
+		l.m.Timestamp = time.Now().In(time.UTC)
+		return
+	}
+	if err := json.Unmarshal(l.mbs, l.m); err != nil {
+		l.errorf("collect: json.Unmarshal: error: %+v id=%s", err, l.m.MatchID)
+		return
+	}
+	if len(l.m.KillData) == 0 {
+		l.debugf("collect: discard (empty data): id=%s", l.m.MatchID)
+	} else {
+		select {
+		case l.matches <- l.m:
+			l.debugf("collect: id=%s", l.m.MatchID)
+		default:
+			l.errorf("collect: discard (queue full): id=%s", l.m.MatchID)
+		}
+	}
+	l.m, l.mbs = &match.Match{Timestamp: time.Now().In(time.UTC)}, nil
+	l.remstat("match")
 }
 
 func (l *Lobby) collector() {
 	defer l.mwg.Done()
 	defer l.debugf("collector: done")
-	l.debugf("collector: matchdir=%s", l.MatchDir)
-	if l.MatchDir == "" {
+	l.debugf("collector: logdir=%s clean=%t", l.LogDir, l.LogClean)
+	if l.LogDir == "" {
 		return
 	}
 	defer l.cancel()
-	sm, err := json.Marshal(syncmeta{
-		ContentType:        "application/json",
-		ContentDisposition: "inline",
-		ContentLanguage:    "en-US",
-		ContentEncoding:    "gzip",
-	})
-	if err != nil {
-		l.errorf("collector: json.Marshal: err=%+v", err)
-		return
-	}
 	for m := range l.matches {
-		// Windows does not allow ':' in the filename.
-		ts := strings.ReplaceAll(m.at.Format(time.RFC3339Nano), ":", "_")
-		file := filepath.Join(l.MatchDir, ts+".match.json.gz")
-		l.debugf("collector: id=%s match=%s", m.id, file)
-		w, err := os.Create(file + ".lock")
-		if err != nil {
-			l.errorf("collector: os.Create: err=%+v", err)
-			return
+		sm := &sync.Meta{
+			ContentType:        "application/json",
+			ContentDisposition: "inline",
+			ContentLanguage:    "en-US",
+			ContentEncoding:    "gzip",
+			Metadata: map[string]string{
+				"lobby": l.session,
+			},
 		}
-		wz := gzip.NewWriter(w)
-		errs := make([]error, 5)
-		_, errs[0] = wz.Write(m.bs)
-		errs[1] = wz.Close()
-		errs[2] = w.Close()
-		errs[3] = xattr.Set(file+".lock", "user.s3sync.meta", sm)
-		errs[4] = os.Rename(file+".lock", file)
-		for i := range errs {
-			if errs[i] != nil {
-				l.errorf("collector: wz.Write: err=%+v", errs[0])
-				l.errorf("collector: wz.Close: err=%+v", errs[1])
-				l.errorf("collector: w.Close: err=%+v", errs[2])
-				l.errorf("collector: xattr.Set: err=%+v", errs[3])
-				l.errorf("collector: os.Rename: err=%+v", errs[4])
-				l.cancel()
-				break
+		if fields := strings.Fields(l.session); len(fields) == 4 {
+			switch fields[0] {
+			case "VRML", "VXL":
+				sm.Metadata["assoc"] = fields[0]
+				sm.Metadata["team0"] = fields[1]
+				sm.Metadata["team1"] = fields[3]
 			}
 		}
+		m.Normalize()
+		// Windows does not allow ':' in the filename.
+		ts := strings.ReplaceAll(m.Timestamp.Format(time.RFC3339Nano), ":", "_")
+		file := filepath.Join(l.LogDir, ts+"-match.json.gz")
+		l.debugf("collector: id=%s file=%s", m.MatchID, file)
+		if err := writeMatchFile(m, sm, file); err != nil {
+			l.errorf("collector: writeMatchFile: error: %+v id=%s file=%s", err, m.MatchID, file)
+			l.cancel()
+		}
+		if !l.LogClean {
+			continue
+		}
+		m.Anonymize()
+		file = filepath.Join(l.LogDir, ts+"-clean.json.gz")
+		if err := writeMatchFile(m, sm, file); err != nil {
+			l.errorf("collector: writeMatchFile: error: %+v id=%s file=%s", err, m.MatchID, file)
+			l.cancel()
+		}
 	}
+}
+
+func writeMatchFile(m *match.Match, sm *sync.Meta, file string) error {
+	bs, err := json.Marshal(sm)
+	if err != nil {
+		return err
+	}
+	lock := file + ".lock"
+	w, err := os.Create(lock)
+	if err != nil {
+		return err
+	}
+	defer os.Rename(lock, file)
+	defer xattr.Set(lock, "user.s3sync.meta", bs)
+	defer w.Close()
+	wz := gzip.NewWriter(w)
+	defer wz.Close()
+	bs, err = json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	_, err = wz.Write(bs)
+	return err
 }

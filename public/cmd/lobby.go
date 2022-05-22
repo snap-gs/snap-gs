@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/snap-gs/snap-gs/public/lobby"
@@ -76,19 +75,20 @@ func NewLobbyCommand() *cobra.Command {
 func NewLobbyFlagSet(name string, handler pflag.ErrorHandling) *pflag.FlagSet {
 	f := pflag.NewFlagSet(name, handler)
 	f.SortFlags = false
-	f.String("roomname", "", "lobby name")
-	f.String("password", "", "lobby auth")
-	f.String("specdir", "", "read desired lobby status here")
-	f.String("statdir", "", "write current lobby status here")
-	f.String("matchdir", "", "write compressed match JSON here")
-	f.String("logdir", "", "write compressed lobby logs here")
-	f.String("exe", LobbyDefaultExe, "path to SnapshotVR executable")
-	f.Duration("timeout", time.Hour*15, "timeout lobby when no players join")
-	f.Duration("uptimeout", time.Minute*5, "same as <timeout> when <specdir>/up is set")
-	f.Duration("admintimeout", time.Minute*15, "timeout lobby when admin delays match start")
-	f.Duration("minuptime", time.Second*15, "min time lobby must run")
-	f.Int("maxfails", 3, "max times lobby may fail")
-	f.Int("maxidles", -1, "max times lobby may idle")
+	f.String("roomname", "", "set lobby name")
+	f.String("password", "", "set lobby pass")
+	f.String("specdir", "", "read desired status from <specdir>/*")
+	f.String("statdir", "", "write current status to <statdir>/*")
+	f.String("logdir", "", "write compressed logs to <logdir>/*-lobby.log.gz")
+	f.Bool("logmatch", false, "write compressed match.json to <logdir>/*-match.json.gz")
+	f.Bool("logclean", false, "write anonymized clean.json to <logdir>/*-clean.json.gz")
+	f.Int("maxidles", -1, "max idles allowed in total before graceful restart")
+	f.Int("maxfails", 3, "max fails allowed in a row across graceful restarts")
+	f.Duration("minuptime", time.Second*15, "min uptime expected before graceful restart")
+	f.Duration("minupuptime", time.Minute*5, "<minuptime> when <specdir>/up set")
+	f.Duration("admintimeout", time.Minute*15, "timeout when admin delays match")
+	f.Duration("timeout", time.Hour*15, "timeout when no players join")
+	f.String("exe", LobbyDefaultExe, "path to executable")
 	f.Bool("debug", false, "enable debug output")
 	return f
 }
@@ -109,10 +109,13 @@ func RunE(cmd *cobra.Command, args []string) error {
 	if opts.StatDir, err = f.GetString("statdir"); err != nil {
 		return err
 	}
-	if opts.MatchDir, err = f.GetString("matchdir"); err != nil {
+	if opts.LogDir, err = f.GetString("logdir"); err != nil {
 		return err
 	}
-	if opts.LogDir, err = f.GetString("logdir"); err != nil {
+	if opts.LogMatch, err = f.GetBool("logmatch"); err != nil {
+		return err
+	}
+	if opts.LogClean, err = f.GetBool("logclean"); err != nil {
 		return err
 	}
 	if opts.Exe, err = f.GetString("exe"); err != nil {
@@ -133,7 +136,7 @@ func RunE(cmd *cobra.Command, args []string) error {
 	if opts.Timeout, err = f.GetDuration("timeout"); err != nil {
 		return err
 	}
-	if opts.MinUpUptime, err = f.GetDuration("uptimeout"); err != nil {
+	if opts.MinUpUptime, err = f.GetDuration("minupuptime"); err != nil {
 		return err
 	}
 	if opts.AdminTimeout, err = f.GetDuration("admintimeout"); err != nil {
@@ -144,35 +147,9 @@ func RunE(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	}
-	if opts.MatchDir != "" {
-		if err := os.MkdirAll(opts.MatchDir, 0o755); err != nil {
-			return err
-		}
-	} else {
-		opts.MatchDir = opts.LogDir
-	}
 	if opts.StatDir != "" {
 		if err := os.MkdirAll(opts.StatDir, 0o755); err != nil {
 			return err
-		}
-		dirents, err := os.ReadDir(opts.StatDir)
-		if err != nil {
-			return err
-		}
-		for i := range dirents {
-			name := dirents[i].Name()
-			if strings.HasPrefix(name, "last") {
-				// Preserve last{log,...}
-				continue
-			}
-			file := filepath.Join(opts.StatDir, name)
-			last := filepath.Join(opts.StatDir, "last"+name)
-			if os.Rename(file, last) == nil {
-				continue
-			}
-			if err := os.Remove(file); err != nil {
-				return err
-			}
 		}
 	}
 	return lobby.Run(cmd.Context(), cmd.OutOrStdout(), cmd.OutOrStderr(), &opts)

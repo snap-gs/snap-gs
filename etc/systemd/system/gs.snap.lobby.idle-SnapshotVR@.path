@@ -1,10 +1,9 @@
 [Unit]
 Description=%j #%i Lobby Idle Path
-AssertPathExists=/usr/bin/inotifywait
 
 
 [Install]
-RequiredBy=gs.snap.lobby-%j@%i.service
+WantedBy=multi-user.target
 
 
 [Path]

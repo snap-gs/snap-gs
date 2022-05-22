@@ -3,6 +3,7 @@ package lobby
 import (
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -10,8 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/xattr"
 	"github.com/snap-gs/snap-gs/internal/lobby"
 	"github.com/snap-gs/snap-gs/internal/log"
+	"github.com/snap-gs/snap-gs/internal/sync"
 )
 
 var ErrLobbyMaxFails = errors.New("lobby max fails")
@@ -21,20 +24,34 @@ func runc(ctx context.Context, stdout, stderr io.Writer, opts *Options, up bool)
 	if err != nil {
 		return err
 	}
+	sm, err := json.Marshal(sync.Meta{
+		ContentType:        "text/plain",
+		ContentDisposition: "inline",
+		ContentLanguage:    "en-US",
+		ContentEncoding:    "gzip",
+		Metadata: map[string]string{
+			"lobby": opts.Roomname,
+		},
+	})
+	if err != nil {
+		return err
+	}
 	if opts.LogDir != "" {
 		// Windows does not allow ':' in the filename.
 		ts := strings.ReplaceAll(time.Now().In(time.UTC).Format(time.RFC3339), ":", "_")
-		file := filepath.Join(opts.LogDir, ts+".lobby.log.gz")
+		file := filepath.Join(opts.LogDir, ts+"-lobby.log.gz")
 		w, err := os.Create(file + ".lock")
 		if err != nil {
 			return err
 		}
 		// TODO: Errors.
 		defer os.Rename(file+".lock", file)
+		defer xattr.Set(file+".lock", "user.s3sync.meta", sm)
 		defer w.Close()
 		wgz := gzip.NewWriter(w)
 		defer wgz.Close()
 		stdout = wgz
+		stderr = io.MultiWriter(stderr, stdout)
 		if opts.Debug {
 			log.Debugf(stderr, "runc: stdout=%s", file)
 		}
@@ -53,23 +70,24 @@ func runc(ctx context.Context, stdout, stderr io.Writer, opts *Options, up bool)
 		}
 	}
 	l := lobby.Lobby{
-		Debug:    opts.Debug,
-		MatchDir: opts.MatchDir,
-		SpecDir:  opts.SpecDir,
-		StatDir:  opts.StatDir,
-
+		Debug:        opts.Debug,
+		SpecDir:      opts.SpecDir,
+		StatDir:      opts.StatDir,
+		MaxIdles:     opts.MaxIdles,
+		MinUptime:    opts.MinUptime,
 		Timeout:      opts.Timeout,
 		AdminTimeout: opts.AdminTimeout,
-
-		MaxIdles:  opts.MaxIdles,
-		MinUptime: opts.MinUptime,
+	}
+	if opts.LogClean || opts.LogMatch {
+		l.LogClean = opts.LogClean
+		l.LogDir = opts.LogDir
 	}
 	if up {
 		l.MinUptime = opts.MinUpUptime
 		l.MaxIdles = -1
 	}
 	err = l.Run(ctx, stdout, stderr, exe, args...)
-	log.Errorf(stderr, "runc: err=%+v minuptime=%s uptime=%s", err, l.MinUptime, l.Uptime())
+	log.Errorf(stderr, "runc: error: %+v minuptime=%s uptime=%s", err, l.MinUptime, l.Uptime())
 	if !up {
 		return err
 	}
@@ -84,7 +102,7 @@ func runc(ctx context.Context, stdout, stderr io.Writer, opts *Options, up bool)
 }
 
 func Run(ctx context.Context, stdout, stderr io.Writer, opts *Options) error {
-	var tries, fails int
+	var runs, fails int
 	started := time.Now()
 	for ctx.Err() == nil {
 		var err error
@@ -107,7 +125,7 @@ func Run(ctx context.Context, stdout, stderr io.Writer, opts *Options) error {
 			// TODO: Exit codes for the above.
 			return ctx.Err()
 		}
-		tries++
+		runs++
 		t := time.Now()
 		err = runc(ctx, stdout, stderr, opts, up)
 		if err != nil {
@@ -115,13 +133,13 @@ func Run(ctx context.Context, stdout, stderr io.Writer, opts *Options) error {
 				return err
 			}
 			fails++
-			log.Errorf(stderr, "lobby.Run: err=%+v tries=%d fails=%d", err, tries, fails)
+			log.Errorf(stderr, "lobby.Run: error: %+v runs=%d fails=%d", err, runs, fails)
 			// Fast retry transient errors.
 			continue
 		}
 		uptime := time.Since(t).Round(time.Millisecond)
 		if opts.Debug {
-			log.Debugf(stderr, "lobby.Run: uptime=%s minuptime=%s tries=%d fails=%d", uptime, opts.MinUptime, tries, fails)
+			log.Debugf(stderr, "lobby.Run: uptime=%s minuptime=%s runs=%d fails=%d", uptime, opts.MinUptime, runs, fails)
 		}
 		if opts.MaxIdles >= 0 {
 			return nil
@@ -137,7 +155,7 @@ func Run(ctx context.Context, stdout, stderr io.Writer, opts *Options) error {
 			return ErrLobbyMaxFails
 		}
 		if opts.Debug {
-			log.Debugf(stderr, "lobby.Run: sleep: secs=%s tries=%d fails=%d", opts.MinUptime-uptime, tries, fails)
+			log.Debugf(stderr, "lobby.Run: sleep: secs=%s runs=%d fails=%d", opts.MinUptime-uptime, runs, fails)
 		}
 		// Avoid busy loops from unknown bugs.
 		select {

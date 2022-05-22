@@ -14,10 +14,12 @@ type Options struct {
 	Roomname string
 	Password string
 
-	LogDir   string
-	MatchDir string
-	SpecDir  string
-	StatDir  string
+	LogDir  string
+	SpecDir string
+	StatDir string
+
+	LogMatch bool
+	LogClean bool
 
 	Exe string
 

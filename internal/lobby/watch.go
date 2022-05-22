@@ -13,7 +13,7 @@ func (l *Lobby) watcher() {
 	if l.Timeout <= 0 && l.AdminTimeout <= 0 {
 		return
 	}
-	every := time.Minute
+	every := 15 * time.Second
 	if l.Timeout > 0 && l.Timeout < every {
 		every = l.Timeout
 	}
@@ -28,10 +28,10 @@ func (l *Lobby) watcher() {
 			return
 		case <-t.C:
 		}
-		if l.m.id != "" {
+		if l.m.MatchID != "" {
 			continue
 		}
-		since := time.Since(l.m.at).Round(100 * time.Microsecond)
+		since := time.Since(l.m.Timestamp).Round(100 * time.Microsecond)
 		if since < l.MinUptime {
 			continue
 		}

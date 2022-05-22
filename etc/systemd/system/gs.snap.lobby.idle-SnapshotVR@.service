@@ -1,7 +1,8 @@
 [Unit]
 Description=%j #%i Lobby Idle Service
+AssertPathExists=/usr/bin/inotifywait
 ConditionPathExists=/opt/snap-gs/%j/%i/stat/idle
-BindsTo=gs.snap.lobby-%j@%i.service
+PartOf=gs.snap.lobby-%j@%i.service
 After=gs.snap.lobby-%j@%i.service
 RefuseManualStart=true
 

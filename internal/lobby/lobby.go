@@ -11,9 +11,8 @@ import (
 
 	"github.com/shirou/gopsutil/v3/process"
 	"github.com/snap-gs/snap-gs/internal/log"
+	"github.com/snap-gs/snap-gs/internal/match"
 )
-
-const SetPipeSize = 1 << 20 // 1MiB
 
 var (
 	ErrLobbyNil          = errors.New("lobby nil")
@@ -29,9 +28,11 @@ var (
 type Lobby struct {
 	Debug bool
 
-	MatchDir string
-	SpecDir  string
-	StatDir  string
+	SpecDir string
+	StatDir string
+
+	LogDir   string
+	LogClean bool
 
 	Timeout      time.Duration
 	AdminTimeout time.Duration
@@ -52,9 +53,10 @@ type Lobby struct {
 	prerr *os.File
 	pwerr *os.File
 
-	m       Match
+	m       *match.Match
+	mbs     []byte
 	mwg     sync.WaitGroup
-	matches chan Match
+	matches chan *match.Match
 	players Players
 
 	stdx   sync.Mutex
@@ -69,11 +71,7 @@ type Lobby struct {
 	reason error
 }
 
-type Match struct {
-	at time.Time
-	bs []byte
-	id string
-}
+const pipesz = 1 << 20 // 1MiB
 
 var setpipesz = func(uintptr) error {
 	return nil
@@ -163,10 +161,10 @@ func (l *Lobby) alloc(ctx context.Context, stdout, stderr io.Writer, exe string,
 	}
 	// Committed to run from here.
 	l.session, l.players = "", Players{}
-	l.reason, l.matches = nil, make(chan Match, 10)
+	l.reason, l.matches = nil, make(chan *match.Match, 10)
 	// Empty 'id' with nonempty 'at' time informs idle lobby watchers of the
 	// most-recent push time when no match is currently in progress.
-	l.m = Match{at: time.Now().In(time.UTC)}
+	l.m, l.mbs = &match.Match{Timestamp: time.Now().In(time.UTC)}, nil
 	l.t1, l.t2 = time.Time{}, time.Time{}
 	l.ctx, l.cancel = context.WithCancel(ctx)
 	l.p, l.c = nil, exec.CommandContext(l.ctx, exe, args...)
@@ -176,6 +174,7 @@ func (l *Lobby) alloc(ctx context.Context, stdout, stderr io.Writer, exe string,
 }
 
 func (l *Lobby) runc(ctx context.Context, stdout, stderr io.Writer, exe string, args ...string) error {
+	defer l.remstats()
 	if err := l.alloc(ctx, stdout, stderr, exe, args...); err != nil {
 		return err
 	}
@@ -186,7 +185,6 @@ func (l *Lobby) runc(ctx context.Context, stdout, stderr io.Writer, exe string, 
 	go l.watcher()
 	go l.scanner(1)
 	go l.scanner(2)
-	defer l.remstats()
 	defer l.mwg.Wait()
 	defer l.cwg.Wait()
 	defer l.pwerr.Close()

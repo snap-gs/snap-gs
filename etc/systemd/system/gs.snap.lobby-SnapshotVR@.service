@@ -1,7 +1,7 @@
 [Unit]
 Description=%j #%i Lobby Service
 AssertPathExists=/opt/snap-gs/%j/%i
-# Deny if 'down' exists. Allow if 'stop' is missing, or 'up' is not.
+# Deny if 'down' exists. Allow if 'stop' is missing or 'up' exists.
 ConditionPathExists=!/opt/snap-gs/%j/%i/spec/down
 ConditionPathExists=|!/opt/snap-gs/%j/%i/spec/stop
 ConditionPathExists=|/opt/snap-gs/%j/%i/spec/up
@@ -16,18 +16,19 @@ Group=snap-gs
 WorkingDirectory=/opt/snap-gs/%j/%i
 EnvironmentFile=-/opt/snap-gs/%j/%i/env
 Environment=HOME=/opt/snap-gs/%j/%i
-Environment=SteamAppId=1948990
-Environment=SNAPGS_LOBBY_DEBUG=true
-Environment=SNAPGS_LOBBY_LOGDIR=logs
-Environment=SNAPGS_LOBBY_MATCHDIR=logs
-Environment=SNAPGS_LOBBY_SPECDIR=spec
-Environment=SNAPGS_LOBBY_STATDIR=stat
-Environment=SNAPGS_LOBBY_ROOMNAME=%N
-Environment=SNAPGS_LOBBY_PASSWORD=%N
-Environment=SNAPGS_LOBBY_ADMINTIMEOUT=15m
-Environment=SNAPGS_LOBBY_TIMEOUT=15h
 Environment=SNAPGS_CPUQUOTA_IDLE=10
 Environment=SNAPGS_CPUQUOTA_BUSY=100
+Environment=SNAPGS_LOBBY_ROOMNAME=%N
+Environment=SNAPGS_LOBBY_PASSWORD=%N
+Environment=SNAPGS_LOBBY_SPECDIR=spec
+Environment=SNAPGS_LOBBY_STATDIR=stat
+Environment=SNAPGS_LOBBY_LOGDIR=logs
+Environment=SNAPGS_LOBBY_LOGMATCH=false
+Environment=SNAPGS_LOBBY_LOGCLEAN=false
+Environment=SNAPGS_LOBBY_ADMINTIMEOUT=15m
+Environment=SNAPGS_LOBBY_TIMEOUT=15h
+Environment=SNAPGS_LOBBY_DEBUG=true
+Environment=SteamAppId=1948990
 ExecStartPre=!/usr/bin/systemctl set-property --runtime %n CPUQuotaPeriodSec=1ms CPUQuota=${SNAPGS_CPUQUOTA_BUSY}%%
 ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/SteamApps/common
 ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/appcache
@@ -39,15 +40,16 @@ ExecStartPre=/usr/bin/ln -s -f -T ${HOME}/.local/share/Steam ${HOME}/.steam/stea
 ExecStartPre=/usr/games/steamcmd +login\sanonymous +app_update\s${SteamAppId}\svalidate +quit
 ExecStartPre=/usr/bin/cp -a /opt/snap-gs/%j/snap-gs /opt/snap-gs/%j/%i/snap-gs
 ExecStart=/opt/snap-gs/%j/%i/snap-gs lobby \
-  --admintimeout=${SNAPGS_LOBBY_ADMINTIMEOUT} \
-  --timeout=${SNAPGS_LOBBY_TIMEOUT} \
-  --debug=${SNAPGS_LOBBY_DEBUG} \
-  --logdir=${SNAPGS_LOBBY_LOGDIR} \
-  --matchdir=${SNAPGS_LOBBY_MATCHDIR} \
+  --roomname=${SNAPGS_LOBBY_ROOMNAME} \
+  --password=${SNAPGS_LOBBY_PASSWORD} \
   --specdir=${SNAPGS_LOBBY_SPECDIR} \
   --statdir=${SNAPGS_LOBBY_STATDIR} \
-  --roomname=${SNAPGS_LOBBY_ROOMNAME} \
-  --password=${SNAPGS_LOBBY_PASSWORD}
+  --logdir=${SNAPGS_LOBBY_LOGDIR} \
+  --logmatch=${SNAPGS_LOBBY_LOGMATCH} \
+  --logclean=${SNAPGS_LOBBY_LOGCLEAN} \
+  --admintimeout=${SNAPGS_LOBBY_ADMINTIMEOUT} \
+  --timeout=${SNAPGS_LOBBY_TIMEOUT} \
+  --debug=${SNAPGS_LOBBY_DEBUG}
 
 # Latency/Availability.
 CPUQuotaPeriodSec=1ms
