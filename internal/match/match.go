@@ -1,11 +1,6 @@
 package match
 
-import (
-	"math/rand"
-	"strconv"
-	"strings"
-	"time"
-)
+import "time"
 
 const (
 	BlueTeam = Team(0)
@@ -28,11 +23,11 @@ type Match struct {
 
 type KillData struct {
 	ShooterID           string   `json:"shooterId,omitempty"`
-	ShooterName         string   `json:"shooterName"`
+	ShooterName         string   `json:"shooterName,omitempty"`
 	ShooterTeam         Team     `json:"shooterTeam"`
 	ShooterIsBot        bool     `json:"shooterIsBot"`
 	EnemyID             string   `json:"enemyId,omitempty"`
-	EnemyName           string   `json:"enemyName"`
+	EnemyName           string   `json:"enemyName,omitempty"`
 	EnemyTeam           Team     `json:"enemyTeam"`
 	EnemyIsBot          bool     `json:"enemyIsBot"`
 	ShooterLocation     Location `json:"shooterLocation"`
@@ -61,33 +56,10 @@ func (m *Match) Normalize() {
 }
 
 func (m *Match) Anonymize() {
-	renames := make(map[string]string, len(m.KillData)/2)
-	indexes := make([]int, len(m.KillData))
-	players := 1
-	for i := range indexes {
-		indexes[i] = i
-	}
-	rand.Shuffle(len(indexes), func(i, j int) {
-		indexes[i], indexes[j] = indexes[j], indexes[i]
-	})
-	for _, i := range indexes {
-		for _, name := range []string{m.KillData[i].ShooterName, m.KillData[i].EnemyName} {
-			if _, ok := renames[name]; ok {
-				continue
-			}
-			if fields := strings.Fields(name); len(fields) != 2 {
-			} else if fields[0] != "Player" && fields[0] != "Bot" {
-			} else if _, err := strconv.ParseInt(fields[1], 10, 64); err != nil {
-			} else {
-				renames[name] = name
-				continue
-			}
-			renames[name] = "Player " + strconv.Itoa(players)
-			players++
-		}
-		m.KillData[i].ShooterName = renames[m.KillData[i].ShooterName]
-		m.KillData[i].EnemyName = renames[m.KillData[i].EnemyName]
+	for i := range m.KillData {
+		m.KillData[i].ShooterName = ""
 		m.KillData[i].ShooterID = ""
+		m.KillData[i].EnemyName = ""
 		m.KillData[i].EnemyID = ""
 	}
 	m.MatchID = ""

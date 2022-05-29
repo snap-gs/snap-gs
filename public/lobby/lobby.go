@@ -30,7 +30,7 @@ func runc(ctx context.Context, stdout, stderr io.Writer, opts *Options, up bool)
 		ContentLanguage:    "en-US",
 		ContentEncoding:    "gzip",
 		Metadata: map[string]string{
-			"lobby": opts.Roomname,
+			"lobby": opts.Session,
 		},
 	})
 	if err != nil {
@@ -56,8 +56,8 @@ func runc(ctx context.Context, stdout, stderr io.Writer, opts *Options, up bool)
 			log.Debugf(stderr, "runc: stdout=%s", file)
 		}
 	}
-	if opts.StatDir != "" {
-		file := filepath.Join(opts.StatDir, "log")
+	if opts.LogDir != "" {
+		file := filepath.Join(opts.LogDir, "lobby.log")
 		w, err := os.Create(file)
 		if err != nil {
 			return err
@@ -78,9 +78,10 @@ func runc(ctx context.Context, stdout, stderr io.Writer, opts *Options, up bool)
 		Timeout:      opts.Timeout,
 		AdminTimeout: opts.AdminTimeout,
 	}
-	if opts.LogClean || opts.LogMatch {
-		l.LogClean = opts.LogClean
+	if opts.LogState || opts.LogMatch || opts.LogClean {
 		l.LogDir = opts.LogDir
+		l.LogState = opts.LogState
+		l.LogClean = opts.LogClean
 	}
 	if up {
 		l.MinUptime = opts.MinUpUptime

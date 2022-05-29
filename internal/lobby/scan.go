@@ -90,7 +90,7 @@ func (l *Lobby) filter(fd int, bs []byte) ([]byte, error) {
 		}
 	case len(bs) != len(arena) && bytes.HasPrefix(bs, []byte(arena)):
 		l.arena = string(bs[len(arena):])
-		l.setstat("arena", bs[len(arena):])
+		l.setstat("arena", l.arena)
 		l.debugf("filter: arena=%s", l.arena)
 	case bytes.HasPrefix(bs, []byte(nosess)), bytes.HasPrefix(bs, []byte(disco)):
 		l.debugf("filter: reason=%+v", ErrLobbyDisconnected)
@@ -146,11 +146,11 @@ func (l *Lobby) filterbolt(fd int, bs []byte) ([]byte, error) {
 	switch {
 	case len(bs) != len(creatingSession) && bytes.HasPrefix(bs, []byte(creatingSession)):
 		l.session = string(bs[len(creatingSession):])
-		l.setstat("session", bs[len(creatingSession):])
+		l.setstat("session", l.session)
 		l.debugf("filterbolt: session=%s", l.session)
 	case len(bs) != len(loadingArenaName) && bytes.HasPrefix(bs, []byte(loadingArenaName)):
 		l.arena = string(bs[len(loadingArenaName):])
-		l.setstat("arena", bs[len(loadingArenaName):])
+		l.setstat("arena", l.arena)
 		l.debugf("filterbolt: arena=%s", l.arena)
 	case bytes.HasPrefix(bs, []byte(playerAssigned)) || bytes.HasPrefix(bs, []byte(remoteCallbacks)):
 		// Player trying to register.
@@ -174,6 +174,7 @@ func (l *Lobby) filterbolt(fd int, bs []byte) ([]byte, error) {
 			// Limit is 10 but 11 or even 12 people seen in the wild.
 			l.newstat("full")
 		}
+		l.setstat("players", players)
 	case len(bs) != len(unregisteredPlayer) && bytes.HasPrefix(bs, []byte(unregisteredPlayer)):
 		id, _, _, admin := l.players.Remove(string(bs[len(unregisteredPlayer):]))
 		if id != -1 && id < 1000 {
@@ -188,6 +189,7 @@ func (l *Lobby) filterbolt(fd int, bs []byte) ([]byte, error) {
 		l.debugf("filterbolt: players=%d bots=%d id=-%d admin=%t", players, bots, id, admin)
 		switch players {
 		case 0:
+			l.remstat("players")
 			// Flush match and update timestamp.
 			l.collect()
 			// Ignore meaningless player joins.
@@ -202,10 +204,12 @@ func (l *Lobby) filterbolt(fd int, bs []byte) ([]byte, error) {
 			} else {
 				l.newstat("idle")
 			}
-		case 1, 2, 3, 4, 5, 6, 7, 8:
 		case 9:
 			// Limit is 10 but 11 or even 12 people seen in the wild.
 			l.remstat("full")
+			l.setstat("players", players)
+		default:
+			l.setstat("players", players)
 		}
 	case bytes.HasPrefix(bs, []byte(arenaSpecNameChanged)):
 		// Fires once before players join to set default arena.

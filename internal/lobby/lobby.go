@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -32,6 +33,7 @@ type Lobby struct {
 	StatDir string
 
 	LogDir   string
+	LogState bool
 	LogClean bool
 
 	Timeout      time.Duration
@@ -39,6 +41,13 @@ type Lobby struct {
 
 	MaxIdles  int
 	MinUptime time.Duration
+
+	states struct {
+		x         sync.Mutex
+		Timestamp time.Time              `json:"@timestamp"`
+		Spec      map[string]interface{} `json:"spec,omitempty"`
+		Stat      map[string]interface{} `json:"stat,omitempty"`
+	}
 
 	arena   string
 	session string
@@ -48,6 +57,7 @@ type Lobby struct {
 	c     *exec.Cmd
 	p     *process.Process
 	cwg   sync.WaitGroup
+	craw  *os.File
 	prout *os.File
 	pwout *os.File
 	prerr *os.File
@@ -139,45 +149,72 @@ func (l *Lobby) Uptime() time.Duration {
 	return l.t2.Sub(l.t1)
 }
 
-func (l *Lobby) alloc(ctx context.Context, stdout, stderr io.Writer, exe string, args ...string) error {
+func (l *Lobby) alloc(ctx context.Context, stdout, stderr io.Writer, exe string, args ...string) (func(), error) {
 	var err error
 	l.prout, l.pwout, err = os.Pipe()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := setpipesz(l.prout.Fd()); err != nil {
 		_, _ = l.prout.Close(), l.pwout.Close()
-		return err
+		return nil, err
 	}
 	l.prerr, l.pwerr, err = os.Pipe()
 	if err != nil {
 		_, _ = l.prout.Close(), l.pwout.Close()
-		return err
+		return nil, err
 	}
 	if err := setpipesz(l.prerr.Fd()); err != nil {
 		_, _ = l.prout.Close(), l.pwout.Close()
 		_, _ = l.prerr.Close(), l.pwerr.Close()
-		return err
+		return nil, err
+	}
+	timer := func() { l.t2 = time.Now().UTC() }
+	done := func() { defer timer() }
+	if l.LogDir != "" && l.Debug {
+		file := filepath.Join(l.LogDir, "Player.log")
+		prev := filepath.Join(l.LogDir, "Player-prev.log")
+		if l.craw, err = os.Create(file); err != nil {
+			_, _ = l.prout.Close(), l.pwout.Close()
+			_, _ = l.prerr.Close(), l.pwerr.Close()
+			return nil, err
+		}
+		done = func() {
+			defer timer()
+			defer os.Rename(file, prev)
+			defer l.craw.Close()
+		}
 	}
 	// Committed to run from here.
+	l.stdout, l.stderr = stdout, stderr
 	l.session, l.players = "", Players{}
 	l.reason, l.matches = nil, make(chan *match.Match, 10)
+	l.states.Spec = make(map[string]interface{}, 10)
+	l.states.Stat = make(map[string]interface{}, 10)
 	// Empty 'id' with nonempty 'at' time informs idle lobby watchers of the
 	// most-recent push time when no match is currently in progress.
-	l.m, l.mbs = &match.Match{Timestamp: time.Now().In(time.UTC)}, nil
-	l.t1, l.t2 = time.Time{}, time.Time{}
+	l.m, l.mbs = &match.Match{Timestamp: time.Now().UTC()}, nil
+	l.t1, l.t2 = time.Now().UTC(), time.Time{}
 	l.ctx, l.cancel = context.WithCancel(ctx)
 	l.p, l.c = nil, exec.CommandContext(l.ctx, exe, args...)
 	l.c.Stdout, l.c.Stderr = l.pwout, l.pwerr
-	l.stdout, l.stderr = stdout, stderr
-	return nil
+	if l.craw != nil {
+		l.c.Stdout = io.MultiWriter(l.pwout, l.craw)
+	}
+	return done, nil
 }
 
 func (l *Lobby) runc(ctx context.Context, stdout, stderr io.Writer, exe string, args ...string) error {
-	defer l.remstats()
-	if err := l.alloc(ctx, stdout, stderr, exe, args...); err != nil {
+	done, err := l.alloc(ctx, stdout, stderr, exe, args...)
+	if err != nil {
 		return err
 	}
+	defer done()
+	l.remstats()
+	l.loadstate()
+	l.savestate()
+	defer l.savestate()
+	defer l.remstats()
 	l.mwg.Add(2)
 	go l.collector()
 	go l.collector()
@@ -191,8 +228,7 @@ func (l *Lobby) runc(ctx context.Context, stdout, stderr io.Writer, exe string, 
 	defer l.pwout.Close()
 	defer l.cancel()
 	l.debugf("runc: c=%s", l.c)
-	l.t1 = time.Now()
-	err := l.c.Start()
+	err = l.c.Start()
 	if err == nil {
 		l.newstat("up")
 		defer l.remstat("up")
@@ -207,7 +243,6 @@ func (l *Lobby) runc(ctx context.Context, stdout, stderr io.Writer, exe string, 
 	if l.reason == nil {
 		l.reason = err
 	}
-	l.t2 = time.Now()
 	return l.Err()
 }
 

@@ -11,13 +11,14 @@ import (
 type Options struct {
 	Debug bool
 
-	Roomname string
+	Session  string
 	Password string
 
 	LogDir  string
 	SpecDir string
 	StatDir string
 
+	LogState bool
 	LogMatch bool
 	LogClean bool
 
@@ -33,25 +34,25 @@ type Options struct {
 }
 
 const (
-	ExeMinLen      = 1
-	RoomnameMinLen = 1
-	RoomnameMaxLen = 26
+	ExeMinLen     = 1
+	SessionMinLen = 1
+	SessionMaxLen = 26
 )
 
 var (
-	ErrExeMinLen      = errors.New(fmt.Sprintf("exe length must be %d or more", ExeMinLen))
-	ErrRoomnameMinLen = errors.New(fmt.Sprintf("roomname length must be %d or more", RoomnameMinLen))
-	ErrRoomnameMaxLen = errors.New(fmt.Sprintf("roomname length must be %d or less", RoomnameMaxLen))
+	ErrExeMinLen     = errors.New(fmt.Sprintf("exe length must be %d or more", ExeMinLen))
+	ErrSessionMinLen = errors.New(fmt.Sprintf("session length must be %d or more", SessionMinLen))
+	ErrSessionMaxLen = errors.New(fmt.Sprintf("session length must be %d or less", SessionMaxLen))
 )
 
 func (o *Options) Validate() error {
 	switch {
 	case len(o.Exe) < ExeMinLen:
 		return ErrExeMinLen
-	case len(o.Roomname) < RoomnameMinLen:
-		return ErrRoomnameMinLen
-	case len(o.Roomname) > RoomnameMaxLen:
-		return ErrRoomnameMaxLen
+	case len(o.Session) < SessionMinLen:
+		return ErrSessionMinLen
+	case len(o.Session) > SessionMaxLen:
+		return ErrSessionMaxLen
 	default:
 		return nil
 	}
@@ -62,7 +63,7 @@ func (o *Options) ExeArgs() (string, []string, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	args := append(strings.Split(o.Exe, ","), "-nographics", "-batchmode", "--roomname", o.Roomname)
+	args := append(strings.Split(o.Exe, ","), "-nographics", "-batchmode", "--roomname", o.Session)
 	if o.Password != "" {
 		args = append(args, "--password", o.Password)
 	}

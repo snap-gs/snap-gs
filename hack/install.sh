@@ -61,7 +61,7 @@ main () {
 		fi
 
 		unset ${!SNAPGS_LOBBY_@}
-		SNAPGS_LOBBY_ROOMNAME=
+		SNAPGS_LOBBY_SESSION=
 		SNAPGS_LOBBY_PASSWORD=
 		SNAPGS_LOBBY_ADMINTIMEOUT=
 		if sudo -u snap-gs test -e /opt/snap-gs/SnapshotVR/$i/env; then
@@ -70,13 +70,13 @@ main () {
 			done < <(sudo -u snap-gs grep -E '^SNAPGS_LOBBY_' /opt/snap-gs/SnapshotVR/$i/env)
 		fi
 		if [[ ${1-} ]] ; then
-			SNAPGS_LOBBY_ROOMNAME=$1
+			SNAPGS_LOBBY_SESSION=$1
 		fi
 		if [[ $# -gt 1 ]] ; then
 			SNAPGS_LOBBY_PASSWORD=$2
 		fi
-		if [[ $SNAPGS_LOBBY_ROOMNAME == */ ]]; then
-			SNAPGS_LOBBY_ROOMNAME=$SNAPGS_LOBBY_ROOMNAME$i
+		if [[ $SNAPGS_LOBBY_SESSION == */ ]]; then
+			SNAPGS_LOBBY_SESSION=$SNAPGS_LOBBY_SESSION$i
 		fi
 		if [[ $SNAPGS_LOBBY_PASSWORD ]]; then
 			SNAPGS_LOBBY_ADMINTIMEOUT=15h
@@ -84,14 +84,17 @@ main () {
 			SNAPGS_LOBBY_ADMINTIMEOUT=15m
 		fi
 		printf "%s=%s\n" \
-				SNAPGS_LOBBY_ROOMNAME "$SNAPGS_LOBBY_ROOMNAME" \
+				SNAPGS_LOBBY_SESSION "$SNAPGS_LOBBY_SESSION" \
 				SNAPGS_LOBBY_PASSWORD "$SNAPGS_LOBBY_PASSWORD" \
 				SNAPGS_LOBBY_ADMINTIMEOUT "$SNAPGS_LOBBY_ADMINTIMEOUT" \
 		| sudo -u snap-gs tee /opt/snap-gs/SnapshotVR/$i/env
 		if [[ $SNAPGS_INSTALL_ACCOUNT == 051813673067 ]]; then
 			printf "%s=%s\n" \
+					SNAPGS_LOBBY_LOGSTATE true \
 					SNAPGS_LOBBY_LOGMATCH true \
 					SNAPGS_LOBBY_LOGCLEAN true \
+					SNAPGS_SYNC_STATEBUCKET public-snap-gs-lobby-$SNAPGS_INSTALL_REGION \
+					SNAPGS_SYNC_STATEREGION $SNAPGS_INSTALL_REGION \
 					SNAPGS_SYNC_MATCHBUCKET snap-gs-match-$SNAPGS_INSTALL_REGION \
 					SNAPGS_SYNC_MATCHREGION $SNAPGS_INSTALL_REGION \
 					SNAPGS_SYNC_CLEANBUCKET public-snap-gs-match-$SNAPGS_INSTALL_REGION \

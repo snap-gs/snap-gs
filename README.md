@@ -4,8 +4,8 @@ servers and writes compressed match result JSON to disk for further processing.
 
 snap-gs simplifies operations for both dedicated servers and temporary lobbies:
 
+* Collect match results. Final match JSON compressed and written to `--logdir`.
 * Idle lobby timeout. Automatically restart lobby when unused or last _human_ player leaves.
-* Collect match results. Final match JSON compressed and written to `--logdir` or `--matchdir`.
 * Idempotent match results. `@timestamp` parsed from match ID and added to match filename/JSON.
 * `snapshot_server` log files. Every lobby process writes a new compressed log file to `--logdir`.
 * Cleaner log files. Drop redundant lines/JSON and add a sub-ms timestamp to every line.
@@ -43,18 +43,21 @@ Usage looks like this:
       snap-gs lobby [flags]
 
     Flags:
-          --roomname string         lobby name
-          --password string         lobby auth
-          --specdir string          read desired lobby status here
-          --statdir string          write current lobby status here
-          --matchdir string         write compressed match JSON here
-          --logdir string           write compressed lobby logs here
-          --exe string              path to Snapshot VR executable
-          --timeout duration        timeout lobby when no players join (default 15h0m0s)
-          --admintimeout duration   timeout lobby when admin delays match start (default 15m0s)
-          --minuptime duration      min time lobby must run (default 15s)
-          --maxfails int            max times lobby may fail (default 3)
-          --maxidles int            max times lobby may idle (default -1)
+          --session string          set lobby name
+          --password string         set lobby auth
+          --specdir string          read desired status from <specdir>/*
+          --statdir string          write current status to <statdir>/*
+          --logdir string           write compressed logs to <logdir>/*-lobby.log.gz
+          --logstate                write compressed state.json to <logdir>/*-state.json.gz
+          --logmatch                write compressed match.json to <logdir>/*-match.json.gz
+          --logclean                write anonymized clean.json to <logdir>/*-clean.json.gz
+          --maxidles int            max idles allowed in total before graceful restart (default -1)
+          --maxfails int            max fails allowed in a row across graceful restarts (default 3)
+          --minuptime duration      min uptime expected before graceful restart (default 15s)
+          --minupuptime duration    <minuptime> when <specdir>/up set (default 5m0s)
+          --admintimeout duration   timeout when admin delays match (default 15m0s)
+          --timeout duration        timeout when no players join (default 15h0m0s)
+          --exe string              path to executable
       -h, --help                    help for lobby
 
     Global Flags:
@@ -64,7 +67,7 @@ Usage looks like this:
 
 ### --logdir
 
-    $ snap-gs lobby --roomname=snap-gs --logdir=logs
+    $ snap-gs lobby --session=snap-gs --logdir=logs
 
     [  96]  ./logs
     |-- [290K]  2022-03-21T20_30_00Z.lobby.log.gz
@@ -75,7 +78,7 @@ Usage looks like this:
 
 ### --logdir and --matchdir
 
-    $ snap-gs lobby --roomname=snap-gs --logdir=logs --matchdir=matches
+    $ snap-gs lobby --session=snap-gs --logdir=logs --matchdir=matches
 
     [  96]  ./logs
     `-- [290K]  2022-03-21T20_30_00Z.lobby.log.gz
@@ -87,9 +90,9 @@ Usage looks like this:
 
 ### --matchdir and --debug
 
-    $ snap-gs lobby --roomname=snap-gs --matchdir=matches --debug
+    $ snap-gs lobby --session=snap-gs --matchdir=matches --debug
 
-    D: 0000.0004 Lobby.runc: c=snapshot_server -nographics -batchmode --roomname snap-gs
+    D: 0000.0004 Lobby.runc: c=snapshot_server -nographics -batchmode --session snap-gs
     D: 0000.0005 Lobby.spooler: matchdir=matches
     1> 0000.0070 Mono path[0] = 'SnapshotVR_Data/Managed'
     1> 0000.0070 Mono config path = 'MonoBleedingEdge/etc'
@@ -111,5 +114,5 @@ Usage looks like this:
 `--maxidles=0` disables automatic lobby restarts. This is useful when eg.
 processing raw `snapshot_server` log files for testing:
 
-    $ snap-gs lobby --debug --maxfails=0 --maxidles=0 --roomname=snap-gs --logdir=logs --matchdir=matches \
+    $ snap-gs lobby --debug --maxfails=0 --maxidles=0 --session=snap-gs --logdir=logs --matchdir=matches \
         --exe="bash,-c,cat < out.log & cat < err.log >&2 & wait,bash"

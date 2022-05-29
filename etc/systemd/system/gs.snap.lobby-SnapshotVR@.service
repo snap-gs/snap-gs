@@ -18,18 +18,19 @@ EnvironmentFile=-/opt/snap-gs/%j/%i/env
 Environment=HOME=/opt/snap-gs/%j/%i
 Environment=SNAPGS_CPUQUOTA_IDLE=10
 Environment=SNAPGS_CPUQUOTA_BUSY=100
-Environment=SNAPGS_LOBBY_ROOMNAME=%N
+Environment=SNAPGS_LOBBY_SESSION=%N
 Environment=SNAPGS_LOBBY_PASSWORD=%N
 Environment=SNAPGS_LOBBY_SPECDIR=spec
 Environment=SNAPGS_LOBBY_STATDIR=stat
 Environment=SNAPGS_LOBBY_LOGDIR=logs
+Environment=SNAPGS_LOBBY_LOGSTATE=false
 Environment=SNAPGS_LOBBY_LOGMATCH=false
 Environment=SNAPGS_LOBBY_LOGCLEAN=false
 Environment=SNAPGS_LOBBY_ADMINTIMEOUT=15m
 Environment=SNAPGS_LOBBY_TIMEOUT=15h
 Environment=SNAPGS_LOBBY_DEBUG=true
 Environment=SteamAppId=1948990
-ExecStartPre=!/usr/bin/systemctl set-property --runtime %n CPUQuotaPeriodSec=1ms CPUQuota=${SNAPGS_CPUQUOTA_BUSY}%%
+ExecStartPre=/usr/bin/rm -f /opt/snap-gs/%j/%i/stat/idle
 ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/SteamApps/common
 ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/appcache
 ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/config
@@ -38,13 +39,15 @@ ExecStartPre=/usr/bin/mkdir -p ${HOME}/.steam
 ExecStartPre=/usr/bin/ln -s -f -T ${HOME}/.local/share/Steam ${HOME}/.steam/root
 ExecStartPre=/usr/bin/ln -s -f -T ${HOME}/.local/share/Steam ${HOME}/.steam/steam
 ExecStartPre=/usr/games/steamcmd +login\sanonymous +app_update\s${SteamAppId}\svalidate +quit
-ExecStartPre=/usr/bin/cp -a /opt/snap-gs/%j/snap-gs /opt/snap-gs/%j/%i/snap-gs
+ExecStartPre=/usr/bin/cp -a /opt/snap-gs/%j/snap-gs /opt/snap-gs/%j/%i/snap-gs.lock
+ExecStartPre=/usr/bin/mv /opt/snap-gs/%j/%i/snap-gs.lock /opt/snap-gs/%j/%i/snap-gs
 ExecStart=/opt/snap-gs/%j/%i/snap-gs lobby \
-  --roomname=${SNAPGS_LOBBY_ROOMNAME} \
+  --session=${SNAPGS_LOBBY_SESSION} \
   --password=${SNAPGS_LOBBY_PASSWORD} \
   --specdir=${SNAPGS_LOBBY_SPECDIR} \
   --statdir=${SNAPGS_LOBBY_STATDIR} \
   --logdir=${SNAPGS_LOBBY_LOGDIR} \
+  --logstate=${SNAPGS_LOBBY_LOGSTATE} \
   --logmatch=${SNAPGS_LOBBY_LOGMATCH} \
   --logclean=${SNAPGS_LOBBY_LOGCLEAN} \
   --admintimeout=${SNAPGS_LOBBY_ADMINTIMEOUT} \

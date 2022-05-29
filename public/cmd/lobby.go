@@ -68,18 +68,19 @@ func NewLobbyCommand() *cobra.Command {
 	}
 	c.Flags().SortFlags = false
 	c.Flags().AddFlagSet(NewLobbyFlagSet(c.Name(), pflag.ContinueOnError))
-	c.MarkFlagRequired("roomname")
+	c.MarkFlagRequired("session")
 	return &c
 }
 
 func NewLobbyFlagSet(name string, handler pflag.ErrorHandling) *pflag.FlagSet {
 	f := pflag.NewFlagSet(name, handler)
 	f.SortFlags = false
-	f.String("roomname", "", "set lobby name")
-	f.String("password", "", "set lobby pass")
+	f.String("session", "", "set lobby name")
+	f.String("password", "", "set lobby auth")
 	f.String("specdir", "", "read desired status from <specdir>/*")
 	f.String("statdir", "", "write current status to <statdir>/*")
 	f.String("logdir", "", "write compressed logs to <logdir>/*-lobby.log.gz")
+	f.Bool("logstate", false, "write compressed state.json to <logdir>/*-state.json.gz")
 	f.Bool("logmatch", false, "write compressed match.json to <logdir>/*-match.json.gz")
 	f.Bool("logclean", false, "write anonymized clean.json to <logdir>/*-clean.json.gz")
 	f.Int("maxidles", -1, "max idles allowed in total before graceful restart")
@@ -97,7 +98,7 @@ func RunE(cmd *cobra.Command, args []string) error {
 	var err error
 	var opts lobby.Options
 	f := cmd.Flags()
-	if opts.Roomname, err = f.GetString("roomname"); err != nil {
+	if opts.Session, err = f.GetString("session"); err != nil {
 		return err
 	}
 	if opts.Password, err = f.GetString("password"); err != nil {
@@ -110,6 +111,9 @@ func RunE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if opts.LogDir, err = f.GetString("logdir"); err != nil {
+		return err
+	}
+	if opts.LogState, err = f.GetBool("logstate"); err != nil {
 		return err
 	}
 	if opts.LogMatch, err = f.GetBool("logmatch"); err != nil {

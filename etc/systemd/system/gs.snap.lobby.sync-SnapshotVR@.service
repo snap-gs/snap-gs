@@ -14,11 +14,14 @@ EnvironmentFile=-/opt/snap-gs/%j/%i/env
 Environment=HOME=/opt/snap-gs/%j/%i
 Environment=SNAPGS_SYNC_LOGBUCKET=
 Environment=SNAPGS_SYNC_LOGREGION=
+Environment=SNAPGS_SYNC_STATEBUCKET=
+Environment=SNAPGS_SYNC_STATEREGION=
 Environment=SNAPGS_SYNC_MATCHBUCKET=
 Environment=SNAPGS_SYNC_MATCHREGION=
 Environment=SNAPGS_SYNC_CLEANBUCKET=
 Environment=SNAPGS_SYNC_CLEANREGION=
-ExecStartPre=/usr/bin/bash -c mv\s/opt/snap-gs/%j/%i/logs/*.gz\s/opt/snap-gs/%j/%i/sync
-ExecStartPre=!/usr/bin/cp /home/ubuntu/snap-gs/hack/sync.sh /opt/snap-gs/%j/%i/sync.sh
+ExecStartPre=-/usr/bin/bash -c sleep\s1;mv\s/opt/snap-gs/%j/%i/logs/*.gz\s/opt/snap-gs/%j/%i/sync
+ExecStartPre=/usr/bin/cp -a /opt/snap-gs/%j/sync.sh /opt/snap-gs/%j/%i/sync.sh.lock
+ExecStartPre=/usr/bin/mv /opt/snap-gs/%j/%i/sync.sh.lock /opt/snap-gs/%j/%i/sync.sh
 ExecStart=/opt/snap-gs/%j/%i/sync.sh /opt/snap-gs/%j/%i/sync /opt/snap-gs/%j/%i/sync
 Nice=3
