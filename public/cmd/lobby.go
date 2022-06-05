@@ -89,6 +89,7 @@ func NewLobbyFlagSet(name string, handler pflag.ErrorHandling) *pflag.FlagSet {
 	f.Duration("minupuptime", time.Minute*5, "<minuptime> when <specdir>/up set")
 	f.Duration("admintimeout", time.Minute*15, "timeout when admin delays match")
 	f.Duration("timeout", time.Hour*15, "timeout when no players join")
+	f.String("listen", "0.0.0.0:0", "bind to local ip:port")
 	f.String("exe", LobbyDefaultExe, "path to executable")
 	f.Bool("debug", false, "enable debug output")
 	return f
@@ -120,6 +121,9 @@ func RunE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if opts.LogClean, err = f.GetBool("logclean"); err != nil {
+		return err
+	}
+	if opts.Listen, err = f.GetString("listen"); err != nil {
 		return err
 	}
 	if opts.Exe, err = f.GetString("exe"); err != nil {

@@ -69,7 +69,10 @@ func runc(ctx context.Context, stdout, stderr io.Writer, opts *Options, up bool)
 			log.Debugf(stderr, "runc: stdout=%s", file)
 		}
 	}
+	_, addr, port := opts.BindAddrPort()
 	l := lobby.Lobby{
+		Addr:         addr,
+		Port:         port,
 		Debug:        opts.Debug,
 		SpecDir:      opts.SpecDir,
 		StatDir:      opts.StatDir,

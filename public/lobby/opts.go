@@ -11,6 +11,8 @@ import (
 type Options struct {
 	Debug bool
 
+	Listen string
+
 	Session  string
 	Password string
 
@@ -58,12 +60,28 @@ func (o *Options) Validate() error {
 	}
 }
 
+func (o *Options) BindAddrPort() (string, string, string) {
+	bind := o.Listen
+	if !strings.Contains(bind, ":") {
+		bind += ":"
+	}
+	if strings.HasSuffix(bind, ":") {
+		bind += "0"
+	}
+	if strings.HasPrefix(bind, ":") {
+		bind = "0.0.0.0" + bind
+	}
+	i := strings.Index(bind, ":")
+	return bind, bind[:i], bind[i+1:]
+}
+
 func (o *Options) ExeArgs() (string, []string, error) {
 	err := o.Validate()
 	if err != nil {
 		return "", nil, err
 	}
-	args := append(strings.Split(o.Exe, ","), "-nographics", "-batchmode", "--roomname", o.Session)
+	bind, _, _ := o.BindAddrPort()
+	args := append(strings.Split(o.Exe, ","), "-nographics", "-batchmode", "--bind-address", bind, "--roomname", o.Session)
 	if o.Password != "" {
 		args = append(args, "--password", o.Password)
 	}
