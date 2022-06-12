@@ -47,7 +47,7 @@ func (l *Lobby) watcher() {
 			for _, key := range []string{"up", "stop", "down", "restart"} {
 				fi, err := os.Stat(filepath.Join(l.SpecDir, key))
 				if err == nil && (key != "restart" || l.t1.Before(fi.ModTime())) {
-					l.updatestate(l.states.Spec, key, fi.ModTime().UTC().AppendFormat(nil, time.RFC3339))
+					l.updatestate(l.states.Spec, key, fi.ModTime().UTC().Format(time.RFC3339))
 				} else {
 					l.updatestate(l.states.Spec, key, nil)
 				}

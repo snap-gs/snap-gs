@@ -8,14 +8,31 @@ IFS=; set -euo pipefail; shopt -s nullglob
 IFS=, read -r -a SNAPGS_INSTALL_LOBBIES <<<$SNAPGS_INSTALL_LOBBIES
 
 main () {
+	if sudo systemctl is-enabled --quiet update-notifier-motd.timer; then
+		sudo systemctl disable \
+			apport-autoreport.timer \
+			apt-daily-upgrade.timer \
+			apt-daily.timer \
+			dpkg-db-backup.timer \
+			man-db.timer \
+			motd-news.timer \
+			ua-license-check.path \
+			ua-reboot-cmds.service \
+			ua-timer.timer \
+			unattended-upgrades.service \
+			update-notifier-download.timer \
+			update-notifier-motd.timer \
+				--now
+	fi
+
 	if ! (command -v go && command -v git && command -v steamcmd && command -v inotifywait &&
-				command -v jq && command -v xattr) > /dev/null
+				command -v jq && command -v xattr && command -v gcc && command -v aws) > /dev/null
 	then
 		sudo dpkg --add-architecture i386
 		sudo apt update
 		sudo debconf-set-selections <<<'steam steam/license note '
 		sudo debconf-set-selections <<<'steam steam/question select I AGREE'
-		sudo apt install --yes --no-install-recommends golang-go git inotify-tools steamcmd jq xattr
+		sudo apt install --yes --no-install-recommends golang-go git inotify-tools steamcmd jq xattr gcc awscli
 	fi
 	if [[ ${SNAPGS_INSTALL_ACCOUNT-} ]]; then
 		:
@@ -37,6 +54,16 @@ main () {
 	fi
 	if ! id -u snap-gs > /dev/null; then
 		sudo useradd --user-group --create-home --home-dir /opt/snap-gs --shell /usr/sbin/nologin --uid 1001 snap-gs
+	fi
+
+	ACCEL=
+	ADDR=$(curl -s $AWS_METADATA_IDENTDOCURL | jq -er .privateIp)
+	ADDR1=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+	if [[ $SNAPGS_INSTALL_ACCOUNT == 051813673067 ]]; then
+		ACCEL=$(curl --silent http://169.254.169.254/latest/meta-data/network/interfaces/macs/)
+		ACCEL=$(curl --silent http://169.254.169.254/latest/meta-data/network/interfaces/macs/${ACCEL}subnet-id)
+		ACCEL=$(aws --region us-west-2 globalaccelerator list-custom-routing-port-mappings-by-destination \
+						--endpoint-id $ACCEL --destination-address $ADDR | jq -e -c)
 	fi
 
 	for k in ${!SNAPGS_INSTALL_LOBBIES[@]}; do
@@ -89,17 +116,28 @@ main () {
 				SNAPGS_LOBBY_ADMINTIMEOUT "$SNAPGS_LOBBY_ADMINTIMEOUT" \
 		| sudo -u snap-gs tee /opt/snap-gs/SnapshotVR/$i/env
 		if [[ $SNAPGS_INSTALL_ACCOUNT == 051813673067 ]]; then
-			SNAPGS_LOBBY_LISTEN=$(curl -s $AWS_METADATA_IDENTDOCURL | jq -er .privateIp)
 			case $i in
-			1) SNAPGS_LOBBY_LISTEN+=:5056 ;;
-			2) SNAPGS_LOBBY_LISTEN+=:27002 ;;
-			*) SNAPGS_LOBBY_LISTEN+=:$((30000+i)) ;;
+			1) PORT=5056 ;;
+			2) PORT=27002 ;;
+			*) PORT=$((30000+i)) ;;
 			esac
+			SNAPGS_LOBBY_LISTEN=$ADDR:$PORT
+			SNAPGS_LOBBY_LISTEN1=$ADDR1:$PORT
+			SNAPGS_LOBBY_LISTEN2=$(
+				jq <<<$ACCEL -er "
+						.DestinationPortMappings[]
+						| select(.DestinationSocketAddress.Port==$PORT)
+						| .AcceleratorSocketAddresses[$k]
+						| \"\\(.IpAddress):\\(.Port)\"
+				" || echo $ADDR1:$PORT
+			)
 			printf "%s=%s\n" \
 					SNAPGS_LOBBY_LOGSTATE true \
 					SNAPGS_LOBBY_LOGMATCH true \
 					SNAPGS_LOBBY_LOGCLEAN true \
 					SNAPGS_LOBBY_LISTEN $SNAPGS_LOBBY_LISTEN \
+					SNAPGS_LOBBY_LISTEN1 $SNAPGS_LOBBY_LISTEN1 \
+					SNAPGS_LOBBY_LISTEN2 $SNAPGS_LOBBY_LISTEN2 \
 					SNAPGS_SYNC_STATEBUCKET public-snap-gs-lobby-$SNAPGS_INSTALL_REGION \
 					SNAPGS_SYNC_STATEREGION $SNAPGS_INSTALL_REGION \
 					SNAPGS_SYNC_MATCHBUCKET snap-gs-match-$SNAPGS_INSTALL_REGION \
@@ -113,26 +151,33 @@ main () {
 
 	done
 
-	if [[ -d ~/snap-gs ]]; then
-		git -C ~/snap-gs remote update -p
-		git -C ~/snap-gs reset --hard origin/main
-	else
-		git clone https://github.com/snap-gs/snap-gs ~/snap-gs
-	fi
+	for repo in https://github.com/snap-gs/snap-gs; do
+		if [[ -d ~/${repo##*/} ]]; then
+			git -C ~/${repo##*/} remote update -p
+			git -C ~/${repo##*/} reset --hard origin/HEAD
+		else
+			git -C ~ clone $repo
+		fi
+	done
 
 	sudo ln -s -f ~/snap-gs/etc/sysctl.d/* /etc/sysctl.d
 	sudo sysctl -q -p ~/snap-gs/etc/sysctl.d/*
 	sudo systemctl link ~/snap-gs/etc/systemd/system/*
 	sudo systemctl daemon-reload
 
-	sudo cp ~/snap-gs/hack/sync.sh /opt/snap-gs/SnapshotVR/sync.sh.lock
-	cd ~/snap-gs; go build -o /tmp/snap-gs.lock ./cmd/snap-gs; cd $OLDPWD
-	sudo mv /tmp/snap-gs.lock /opt/snap-gs/SnapshotVR
-	sudo mv /opt/snap-gs/SnapshotVR/sync.sh{.lock,}
+	cd ~/snap-gs; go build -o /tmp/snap-gs ./cmd/snap-gs; cd $OLDPWD
+	sudo install --owner=snap-gs --group=snap-gs --mode=755 /tmp/snap-gs /opt/snap-gs/SnapshotVR/snap-gs.lock
+	if [[ $SNAPGS_INSTALL_ACCOUNT == 051813673067 ]]; then
+		gcc -nostartfiles -fpic -shared ~/snap-gs/hack/preload.c -o /tmp/preload.so -ldl -D_GNU_SOURCE
+		sudo install --owner=snap-gs --group=snap-gs --mode=755 /tmp/preload.so /opt/snap-gs/SnapshotVR/snap-gs-preload.so.lock
+		sudo install --owner=snap-gs --group=snap-gs --mode=755 ~/snap-gs/hack/sync.sh /opt/snap-gs/SnapshotVR/sync.sh.lock
+		sudo mv /opt/snap-gs/SnapshotVR/snap-gs-preload.so{.lock,}
+		sudo mv /opt/snap-gs/SnapshotVR/sync.sh{.lock,}
+	fi
 	sudo mv /opt/snap-gs/SnapshotVR/snap-gs{.lock,}
 
 	for i in ${SNAPGS_INSTALL_LOBBIES[@]}; do
-		if [[ $SNAPGS_INSTALL_ACCOUNT == 051813673067 ]]; then
+		if [[ ${1-} != *-test ]] && [[ $SNAPGS_INSTALL_ACCOUNT == 051813673067 ]]; then
 			sudo systemctl enable gs.snap.lobby.sync-SnapshotVR@$i.path
 			sudo systemctl restart gs.snap.lobby.sync-SnapshotVR@$i.path
 		fi
@@ -140,7 +185,7 @@ main () {
 		sudo systemctl restart gs.snap.lobby.idle-SnapshotVR@$i.path
 		sudo systemctl enable gs.snap.lobby-SnapshotVR@$i.path
 		sudo systemctl restart gs.snap.lobby-SnapshotVR@$i.path
-		if [[ $i == 1 || ${1-} == VRML* || ${1-} == VXL* ]]; then
+		if [[ ${1-} != *-test ]] && [[ $i == 1 || ${1-} == VRML* || ${1-} == VXL* ]]; then
 			sudo systemctl enable gs.snap.lobby-SnapshotVR@$i.timer
 			sudo systemctl restart gs.snap.lobby-SnapshotVR@$i.timer
 		else
@@ -148,6 +193,8 @@ main () {
 			sudo systemctl stop gs.snap.lobby-SnapshotVR@$i.timer
 		fi
 	done
+
+	echo DONE
 }
 
 main "$@"

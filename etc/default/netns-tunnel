@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# IP address of the interface in the global netns connecting to your new netns
+IPADDR_OUTSIDE=10.$NSNAME.$NSNAME.$NSNAME/32
+
+autoconfigure_tunnel_up_outside () {
+  . /opt/snap-gs/SnapshotVR/$NSNAME/env
+
+  # IP address of the interface in the new netns connecting to the global netns
+  IPADDR=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)/32
+
+  sysctl net.ipv4.ip_forward=1
+  sysctl net.ipv6.conf.all.forwarding=1
+
+  ip link delete $DEVNAME_OUTSIDE || true
+  ip link delete $DEVNAME_INSIDE || true
+
+  ip link add $DEVNAME_OUTSIDE type veth peer name $DEVNAME_INSIDE
+  ! tc qdisc del dev $DEVNAME_INSIDE root # ?????
+  ip link set $DEVNAME_INSIDE netns $NSNAME
+  ip link set $DEVNAME_OUTSIDE up
+  ip -n $NSNAME link set $DEVNAME_INSIDE up
+  ip address add $IPADDR_OUTSIDE peer $IPADDR dev $DEVNAME_OUTSIDE
+  ip -n $NSNAME address add $IPADDR peer $IPADDR_OUTSIDE dev $DEVNAME_INSIDE
+  ip -n $NSNAME route add default via ${IPADDR_OUTSIDE%%/*} dev $DEVNAME_INSIDE onlink
+
+  PORT=${SNAPGS_LOBBY_LISTEN##*:}
+  DESTINATION=${IPADDR%%/*}:$PORT
+  iptables -t nat -D PREROUTING ! -s $IPADDR -p udp -m udp --dport $PORT -j DNAT --to-destination $DESTINATION || true
+  iptables -t nat -D POSTROUTING -o $DEVNAME_OUTSIDE -j MASQUERADE || true
+
+  iptables -t nat -A PREROUTING ! -s $IPADDR -p udp -m udp --dport $PORT -j DNAT --to-destination $DESTINATION
+  iptables -t nat -A POSTROUTING -o $DEVNAME_OUTSIDE -j MASQUERADE
+}
+
+autoconfigure_tunnel_down_outside () {
+  ip link delete $DEVNAME_OUTSIDE
+}
+
+autoconfigure_tunnel_up_inside () {
+  :
+}
+
+autoconfigure_tunnel_down_inside () {
+  :
+}

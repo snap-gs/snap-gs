@@ -1,5 +1,6 @@
 // gcc -nostartfiles -fpic -shared hack/preload.c -o /tmp/snap-gs-preload.so -ldl -D_GNU_SOURCE
 
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,70 +11,105 @@
 #include <dlfcn.h>
 #include <errno.h>
 
-char *priv = NULL;
-char *pub1 = NULL;
-char *pub2 = NULL;
+
+char *snapgs_lobby_listen = NULL;
+char *snapgs_lobby_listen1 = NULL;
+char *snapgs_lobby_listen2 = NULL;
+
+
+// Largest is "\x07\x2b000.000.000.000:00000|000.000.000.000:00000\x00".
+size_t send_buf1_size = 0;
+size_t send_buf2_size = 0;
+char send_buf1[46] = {0};
+char send_buf2[46] = {0};
+
 
 ssize_t (*send_next)(int, const void *, size_t, int);
 
+
 void _init(void) {
-    const char *err;
-    priv = getenv("SNAPGS_BIND_PRIVATE");
-    pub1 = getenv("SNAPGS_BIND_PUBLIC1");
-    pub2 = getenv("SNAPGS_BIND_PUBLIC2");
-    send_next = dlsym(RTLD_NEXT, "send");
-    if ((err = dlerror()) != NULL) {
-        fprintf(stderr, "preload: dlerror: %s\n", err);
-        exit(99);
+
+    const unsigned char minaddr[] = "0.0.0.0:0";
+    const unsigned char maxaddr[] = "000.000.000.000:00000";
+    const size_t minlen = sizeof(minaddr)-1;
+    const size_t maxlen = sizeof(maxaddr)-1;
+
+    if ((send_next = dlsym(RTLD_NEXT, "send")) == NULL) {
+        fprintf(stderr, "preload.c: _init: dlerror: %s\n", dlerror());
+        exit(90);
     }
-    if (priv == NULL) {
-        fprintf(stderr, "preload: error: SNAPGS_BIND_PRIVATE\n");
+
+    if ((snapgs_lobby_listen = getenv("SNAPGS_LOBBY_LISTEN")) == NULL) {
+        fprintf(stderr, "preload.c: _init: getenv: SNAPGS_LOBBY_LISTEN\n");
         exit(100);
-    }
-    if (pub1 == NULL) {
-        fprintf(stderr, "preload: error: SNAPGS_BIND_PUBLIC1\n");
+    } else if (strlen(snapgs_lobby_listen) < minlen || strlen(snapgs_lobby_listen) > maxlen) {
+        fprintf(stderr, "preload.c: _init: strlen: SNAPGS_LOBBY_LISTEN: %lu < %lu < %lu\n", minlen, strlen(snapgs_lobby_listen), maxlen);
         exit(101);
     }
-    if (pub2 == NULL) {
-        fprintf(stderr, "preload: error: SNAPGS_BIND_PUBLIC2\n");
-        exit(102);
+
+    if ((snapgs_lobby_listen1 = getenv("SNAPGS_LOBBY_LISTEN1")) == NULL) {
+        fprintf(stderr, "preload.c: _init: getenv: SNAPGS_LOBBY_LISTEN1\n");
+        exit(110);
+    } else if (strlen(snapgs_lobby_listen1) < minlen || strlen(snapgs_lobby_listen1) > maxlen) {
+        fprintf(stderr, "preload.c: _init: strlen: SNAPGS_LOBBY_LISTEN1: %lu < %lu < %lu\n", minlen, strlen(snapgs_lobby_listen1), maxlen);
+        exit(111);
     }
+
+    if ((snapgs_lobby_listen2 = getenv("SNAPGS_LOBBY_LISTEN2")) == NULL) {
+        fprintf(stderr, "preload.c: _init: getenv: SNAPGS_LOBBY_LISTEN2\n");
+        exit(120);
+    } else if (strlen(snapgs_lobby_listen2) < minlen || strlen(snapgs_lobby_listen2) > maxlen) {
+        fprintf(stderr, "preload.c: _init: strlen: SNAPGS_LOBBY_LISTEN2: %lu < %lu < %lu\n", minlen, strlen(snapgs_lobby_listen2), maxlen);
+        exit(121);
+    }
+
+    const size_t len = strlen(snapgs_lobby_listen);
+    const size_t len1 = strlen(snapgs_lobby_listen1);
+    const size_t len2 = strlen(snapgs_lobby_listen2);
+
+    memset(&send_buf1, '\0', sizeof(send_buf1));
+    memset(&send_buf2, '\0', sizeof(send_buf2));
+    memcpy(&send_buf1[2], snapgs_lobby_listen, len);
+    memcpy(&send_buf2[2], minaddr, minlen);
+    memcpy(&send_buf1[2+len+1], snapgs_lobby_listen1, len1);
+    memcpy(&send_buf2[2+minlen+1], snapgs_lobby_listen2, len2);
+    send_buf1[0] = 7, send_buf1[1] = len+len1+1, send_buf1[2+len] = '|';
+    send_buf2[0] = 7, send_buf2[1] = len+len1+1, send_buf2[2+minlen] = '|';
+    send_buf1_size = 2+len+1+len1, send_buf2_size = 2+minlen+1+len2;
+
 }
+
 
 ssize_t send(int fd, const void *buf, size_t size, int flags) {
-    if (size < 45) {
-        return send_next(fd, buf, size, flags);
-    }
-    int offset = -1;
-    int len = strlen(priv);
-    char *data = (char*) buf;
-    for (int i = size-45, j = 0; i < size-len-9; i++) {
-        for (j = 0; j < len; j++) {
-            if (data[i+j] != priv[j]) {
-                break;
-            }
-        }
-        if (j == len && data[i+j] == '|') {
-            offset = i;
-            break;
-        }
-    }
-    if (offset == -1) {
-        return send_next(fd, buf, size, flags);
-    }
-    char packet[1024] = {0};
-    int len1 = strlen(pub1);
-    int len2 = strlen(pub2);
-    packet[offset+len1] = '|';
-    packet[offset-1] = len1 + len2 + 1;
-    memcpy(packet, data, offset-1);
-    memcpy(&packet[offset], pub1, len1);
-    memcpy(&packet[offset+len1+1], pub2, len2);
-    send_next(fd, packet, offset+len1+len2+1, flags);
-    fprintf(stderr, "preload: %s|%s (%ld -> %d)\n", pub1, pub2, size, offset+len1+len2+1);
-    return size;
-}
 
-int main(int argc, char **argv) {
-    return 0;
+    if (size < sizeof(send_buf1)) {
+        return send_next(fd, buf, size, flags);
+    }
+
+    unsigned char *data = (unsigned char *) buf;
+    unsigned char *last = (unsigned char *) buf + size;
+
+    while ((data = memchr(data, send_buf1[0], last-data)) != NULL) {
+
+        if (memcmp(data, send_buf1, send_buf1_size) != 0) {
+            if (++data < last)
+                continue;
+
+            break;
+
+        }
+
+        fprintf(stderr, "preload.c: send[%lu-%lu+%lu%+d]: %d, %d, \"%s\" (%lu) -> %d, %d, \"%s\" (%lu)\n",
+                size, last-data, send_buf1_size, (int)send_buf2_size-(int)send_buf1_size,
+                send_buf1[0], send_buf1[1], &send_buf1[2], send_buf1_size,
+                send_buf2[0], send_buf2[1], &send_buf2[2], send_buf2_size);
+
+        memcpy(data, send_buf2, send_buf1_size);
+        if ((data += send_buf1_size) >= last)
+            break;
+
+    }
+
+    return send_next(fd, buf, size, flags);
+
 }
