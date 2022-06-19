@@ -32,7 +32,7 @@ main () {
 		sudo apt update
 		sudo debconf-set-selections <<<'steam steam/license note '
 		sudo debconf-set-selections <<<'steam steam/question select I AGREE'
-		sudo apt install --yes --no-install-recommends golang-go git inotify-tools steamcmd jq xattr gcc awscli
+		sudo apt install --yes --no-install-recommends golang-go git inotify-tools steamcmd jq xattr build-essential awscli
 	fi
 	if [[ ${SNAPGS_INSTALL_ACCOUNT-} ]]; then
 		:
@@ -63,7 +63,7 @@ main () {
 		ACCEL=$(curl --silent http://169.254.169.254/latest/meta-data/network/interfaces/macs/)
 		ACCEL=$(curl --silent http://169.254.169.254/latest/meta-data/network/interfaces/macs/${ACCEL}subnet-id)
 		ACCEL=$(aws --region us-west-2 globalaccelerator list-custom-routing-port-mappings-by-destination \
-						--endpoint-id $ACCEL --destination-address $ADDR | jq -e -c)
+						--endpoint-id $ACCEL --destination-address $ADDR | jq -e -c || true)
 	fi
 
 	for k in ${!SNAPGS_INSTALL_LOBBIES[@]}; do
@@ -116,21 +116,20 @@ main () {
 				SNAPGS_LOBBY_ADMINTIMEOUT "$SNAPGS_LOBBY_ADMINTIMEOUT" \
 		| sudo -u snap-gs tee /opt/snap-gs/SnapshotVR/$i/env
 		if [[ $SNAPGS_INSTALL_ACCOUNT == 051813673067 ]]; then
-			case $i in
-			1) PORT=5056 ;;
-			2) PORT=27002 ;;
-			*) PORT=$((30000+i)) ;;
-			esac
+			PORT=$((27001+i))
 			SNAPGS_LOBBY_LISTEN=$ADDR:$PORT
 			SNAPGS_LOBBY_LISTEN1=$ADDR1:$PORT
 			SNAPGS_LOBBY_LISTEN2=$(
-				jq <<<$ACCEL -er "
-						.DestinationPortMappings[]
-						| select(.DestinationSocketAddress.Port==$PORT)
-						| .AcceleratorSocketAddresses[$k]
-						| \"\\(.IpAddress):\\(.Port)\"
-				" || echo $ADDR1:$PORT
+				jq <<<"$ACCEL" -r --argjson i $((i % 2)) --argjson port $PORT '
+					.DestinationPortMappings[]
+					| select(.DestinationSocketAddress.Port==$port)
+					| .AcceleratorSocketAddresses[$i]
+					| "\(.IpAddress):\(.Port)"
+				'
 			)
+			if [[ ! $SNAPGS_LOBBY_LISTEN2 ]]; then
+				SNAPGS_LOBBY_LISTEN2=$ADDR1:$PORT
+			fi
 			printf "%s=%s\n" \
 					SNAPGS_LOBBY_LOGSTATE true \
 					SNAPGS_LOBBY_LOGMATCH true \

@@ -43,7 +43,8 @@ void _init(void) {
         fprintf(stderr, "preload.c: _init: getenv: SNAPGS_LOBBY_LISTEN\n");
         exit(100);
     } else if (strlen(snapgs_lobby_listen) < minlen || strlen(snapgs_lobby_listen) > maxlen) {
-        fprintf(stderr, "preload.c: _init: strlen: SNAPGS_LOBBY_LISTEN: %lu < %lu < %lu\n", minlen, strlen(snapgs_lobby_listen), maxlen);
+        fprintf(stderr, "preload.c: _init: strlen: SNAPGS_LOBBY_LISTEN: %lu < %lu < %lu\n",
+                minlen, strlen(snapgs_lobby_listen), maxlen);
         exit(101);
     }
 
@@ -51,7 +52,8 @@ void _init(void) {
         fprintf(stderr, "preload.c: _init: getenv: SNAPGS_LOBBY_LISTEN1\n");
         exit(110);
     } else if (strlen(snapgs_lobby_listen1) < minlen || strlen(snapgs_lobby_listen1) > maxlen) {
-        fprintf(stderr, "preload.c: _init: strlen: SNAPGS_LOBBY_LISTEN1: %lu < %lu < %lu\n", minlen, strlen(snapgs_lobby_listen1), maxlen);
+        fprintf(stderr, "preload.c: _init: strlen: SNAPGS_LOBBY_LISTEN1: %lu < %lu < %lu\n",
+                minlen, strlen(snapgs_lobby_listen1), maxlen);
         exit(111);
     }
 
@@ -59,32 +61,32 @@ void _init(void) {
         fprintf(stderr, "preload.c: _init: getenv: SNAPGS_LOBBY_LISTEN2\n");
         exit(120);
     } else if (strlen(snapgs_lobby_listen2) < minlen || strlen(snapgs_lobby_listen2) > maxlen) {
-        fprintf(stderr, "preload.c: _init: strlen: SNAPGS_LOBBY_LISTEN2: %lu < %lu < %lu\n", minlen, strlen(snapgs_lobby_listen2), maxlen);
+        fprintf(stderr, "preload.c: _init: strlen: SNAPGS_LOBBY_LISTEN2: %lu < %lu < %lu\n",
+                minlen, strlen(snapgs_lobby_listen2), maxlen);
         exit(121);
     }
 
     const size_t len = strlen(snapgs_lobby_listen);
     const size_t len1 = strlen(snapgs_lobby_listen1);
     const size_t len2 = strlen(snapgs_lobby_listen2);
+    send_buf1_size = 2+len+1+len1, send_buf2_size = 2+len+1+len1;
 
     memset(&send_buf1, '\0', sizeof(send_buf1));
     memset(&send_buf2, '\0', sizeof(send_buf2));
+    memset(&send_buf2[2], '0', len+1+len1);
     memcpy(&send_buf1[2], snapgs_lobby_listen, len);
-    memcpy(&send_buf2[2], minaddr, minlen);
     memcpy(&send_buf1[2+len+1], snapgs_lobby_listen1, len1);
-    memcpy(&send_buf2[2+minlen+1], snapgs_lobby_listen2, len2);
-    send_buf1[0] = 7, send_buf1[1] = len+len1+1, send_buf1[2+len] = '|';
-    send_buf2[0] = 7, send_buf2[1] = len+len1+1, send_buf2[2+minlen] = '|';
-    send_buf1_size = 2+len+1+len1, send_buf2_size = 2+minlen+1+len2;
+    memcpy(&send_buf2[2+len+1+len1-len2], snapgs_lobby_listen2, len2);
+    send_buf1[0] = 7, send_buf1[1] = len+1+len1, send_buf1[2+len] = '|';
+    send_buf2[0] = 7, send_buf2[1] = len+1+len1, send_buf2[2+len+len1-len2] = '|', send_buf2[2+len+len1-len2-2] = ':';
 
 }
 
 
 ssize_t send(int fd, const void *buf, size_t size, int flags) {
 
-    if (size < sizeof(send_buf1)) {
+    if (size < sizeof(send_buf1))
         return send_next(fd, buf, size, flags);
-    }
 
     unsigned char *data = (unsigned char *) buf;
     unsigned char *last = (unsigned char *) buf + size;

@@ -18,7 +18,9 @@ EnvironmentFile=-/opt/snap-gs/%j/%i/env
 Environment=HOME=/opt/snap-gs/%j/%i
 Environment=SNAPGS_CPUQUOTA_IDLE=10
 Environment=SNAPGS_CPUQUOTA_BUSY=100
-Environment=SNAPGS_LOBBY_LISTEN=0.0.0.0:0
+Environment=SNAPGS_LOBBY_LISTEN=0.0.0.0:27002
+Environment=SNAPGS_LOBBY_LISTEN1=0.0.0.0:27002
+Environment=SNAPGS_LOBBY_LISTEN2=0.0.0.0:27002
 Environment=SNAPGS_LOBBY_SESSION=%N
 Environment=SNAPGS_LOBBY_PASSWORD=%N
 Environment=SNAPGS_LOBBY_SPECDIR=spec
@@ -46,6 +48,8 @@ ExecStartPre=/usr/bin/cp -a /opt/snap-gs/%j/snap-gs /opt/snap-gs/%j/%i/snap-gs.l
 ExecStartPre=/usr/bin/mv /opt/snap-gs/%j/%i/snap-gs.lock /opt/snap-gs/%j/%i/snap-gs
 ExecStart=/opt/snap-gs/%j/%i/snap-gs lobby \
   --listen=${SNAPGS_LOBBY_LISTEN} \
+  --listen1=${SNAPGS_LOBBY_LISTEN1} \
+  --listen2=${SNAPGS_LOBBY_LISTEN2} \
   --session=${SNAPGS_LOBBY_SESSION} \
   --password=${SNAPGS_LOBBY_PASSWORD} \
   --specdir=${SNAPGS_LOBBY_SPECDIR} \

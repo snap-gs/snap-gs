@@ -11,7 +11,9 @@ import (
 type Options struct {
 	Debug bool
 
-	Listen string
+	Listen  string
+	Listen1 string
+	Listen2 string
 
 	Session  string
 	Password string
@@ -38,7 +40,7 @@ type Options struct {
 const (
 	ExeMinLen     = 1
 	SessionMinLen = 1
-	SessionMaxLen = 26
+	SessionMaxLen = 40
 )
 
 var (
@@ -60,31 +62,36 @@ func (o *Options) Validate() error {
 	}
 }
 
-func (o *Options) BindAddrPort() (string, string, string) {
-	bind := o.Listen
-	if !strings.Contains(bind, ":") {
-		bind += ":"
-	}
-	if strings.HasSuffix(bind, ":") {
-		bind += "0"
-	}
-	if strings.HasPrefix(bind, ":") {
-		bind = "0.0.0.0" + bind
-	}
-	i := strings.Index(bind, ":")
-	return bind, bind[:i], bind[i+1:]
-}
-
 func (o *Options) ExeArgs() (string, []string, error) {
 	err := o.Validate()
 	if err != nil {
 		return "", nil, err
 	}
-	bind, _, _ := o.BindAddrPort()
-	args := append(strings.Split(o.Exe, ","), "-nographics", "-batchmode", "--bind-address", bind, "--roomname", o.Session)
+	args := append(strings.Split(o.Exe, ","), "-nographics", "-batchmode", "--roomname", o.Session)
 	if o.Password != "" {
 		args = append(args, "--password", o.Password)
 	}
+	if o.Listen != "" {
+		args = append(args, "--bind-address", o.Listen)
+	}
 	args[0], err = exec.LookPath(args[0])
 	return args[0], args[1:], err
+}
+
+func BindAddrPort(bind, addr, port string) (string, string, string) {
+	const colon = ":"
+	if !strings.Contains(bind, colon) {
+		bind += colon
+	}
+	if bind[0] == colon[0] {
+		bind = addr + bind
+	}
+	if bind[len(bind)-1] == colon[0] {
+		bind += port
+	}
+	if bind == colon {
+		return "", "", ""
+	}
+	i := strings.IndexByte(bind, colon[0])
+	return bind, bind[:i], bind[i+1:]
 }

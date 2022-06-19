@@ -89,7 +89,9 @@ func NewLobbyFlagSet(name string, handler pflag.ErrorHandling) *pflag.FlagSet {
 	f.Duration("minupuptime", time.Minute*5, "<minuptime> when <specdir>/up set")
 	f.Duration("admintimeout", time.Minute*15, "timeout when admin delays match")
 	f.Duration("timeout", time.Hour*15, "timeout when no players join")
-	f.String("listen", "0.0.0.0:0", "bind to local ip:port")
+	f.String("listen", "0.0.0.0:27002", "bind local ip:port")
+	f.String("listen1", "", "bind public ip:port (default <listen>)")
+	f.String("listen2", "", "bind accel ip:port (default <listen1>)")
 	f.String("exe", LobbyDefaultExe, "path to executable")
 	f.Bool("debug", false, "enable debug output")
 	return f
@@ -124,6 +126,12 @@ func RunE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if opts.Listen, err = f.GetString("listen"); err != nil {
+		return err
+	}
+	if opts.Listen1, err = f.GetString("listen1"); err != nil {
+		return err
+	}
+	if opts.Listen2, err = f.GetString("listen2"); err != nil {
 		return err
 	}
 	if opts.Exe, err = f.GetString("exe"); err != nil {

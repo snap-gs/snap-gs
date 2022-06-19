@@ -29,8 +29,9 @@ var (
 type Lobby struct {
 	Debug bool
 
-	Addr string
-	Port string
+	Listen  string
+	Listen1 string
+	Listen2 string
 
 	SpecDir string
 	StatDir string
@@ -204,12 +205,19 @@ func (l *Lobby) alloc(ctx context.Context, stdout, stderr io.Writer, exe string,
 	if l.craw != nil {
 		l.c.Stdout = io.MultiWriter(l.pwout, l.craw)
 	}
+	l.c.Env = os.Environ()
 	if self, err := os.Executable(); err == nil {
 		preload := self + "-preload.so"
 		if _, err := os.Stat(preload); err == nil {
-			l.c.Env = append(os.Environ(), "LD_PRELOAD="+preload)
+			l.c.Env = append(l.c.Env, "LD_PRELOAD="+preload)
 		}
 	}
+	l.c.Env = append(
+		l.c.Env,
+		"SNAPGS_LOBBY_LISTEN="+l.Listen,
+		"SNAPGS_LOBBY_LISTEN1="+l.Listen1,
+		"SNAPGS_LOBBY_LISTEN2="+l.Listen2,
+	)
 	return done, nil
 }
 

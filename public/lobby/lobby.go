@@ -69,10 +69,13 @@ func runc(ctx context.Context, stdout, stderr io.Writer, opts *Options, up bool)
 			log.Debugf(stderr, "runc: stdout=%s", file)
 		}
 	}
-	_, addr, port := opts.BindAddrPort()
+	listen, addr, port := BindAddrPort(opts.Listen, "0.0.0.0", "27002")
+	listen1, addr, port := BindAddrPort(opts.Listen1, addr, port)
+	listen2, addr, port := BindAddrPort(opts.Listen2, addr, port)
 	l := lobby.Lobby{
-		Addr:         addr,
-		Port:         port,
+		Listen:       listen,
+		Listen1:      listen1,
+		Listen2:      listen2,
 		Debug:        opts.Debug,
 		SpecDir:      opts.SpecDir,
 		StatDir:      opts.StatDir,
