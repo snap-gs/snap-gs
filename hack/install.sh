@@ -151,11 +151,11 @@ main () {
 	done
 
 	for repo in https://github.com/snap-gs/snap-gs; do
-		if [[ -d ~/${repo##*/} ]]; then
+		if ! [[ -d ~/${repo##*/} ]]; then
+			git -C ~ clone $repo
+		elif git diff --quiet; then
 			git -C ~/${repo##*/} remote update -p
 			git -C ~/${repo##*/} reset --hard origin/HEAD
-		else
-			git -C ~ clone $repo
 		fi
 	done
 
