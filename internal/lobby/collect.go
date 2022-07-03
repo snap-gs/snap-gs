@@ -20,7 +20,6 @@ func (l *Lobby) enqueue(id string, match []byte) {
 	const prefix, suffix = `{"@timestamp":"`, `",`
 	// Extra -5 drops unused TZ and -1 overwrites '{' with ','.
 	const offset = len(prefix) + len(rfc3339nano) + len(suffix) - 6
-	defer func() { l.newstat("match") }()
 	bs := make([]byte, len(match)+offset)
 	copy(bs[offset:], match)
 	if l.m.MatchID == id {
@@ -40,6 +39,7 @@ func (l *Lobby) enqueue(id string, match []byte) {
 	} else {
 		l.m.Timestamp = t.UTC()
 	}
+	l.newstat("match")
 	copy(bs[:offset+1], []byte(prefix+l.m.Timestamp.Format(rfc3339nano)+suffix))
 	l.mbs = bs
 }

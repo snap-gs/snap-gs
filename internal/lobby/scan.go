@@ -90,6 +90,8 @@ func (l *Lobby) filter(fd int, bs []byte) ([]byte, error) {
 		}
 	case len(bs) != len(arena) && bytes.HasPrefix(bs, []byte(arena)):
 		l.arena = string(bs[len(arena):])
+		// TODO: Atomicity.
+		l.remstat("arena")
 		l.setstat("arena", l.arena)
 		l.debugf("filter: arena=%s", l.arena)
 	case bytes.HasPrefix(bs, []byte(nosess)), bytes.HasPrefix(bs, []byte(disco)):
@@ -146,10 +148,14 @@ func (l *Lobby) filterbolt(fd int, bs []byte) ([]byte, error) {
 	switch {
 	case len(bs) != len(creatingSession) && bytes.HasPrefix(bs, []byte(creatingSession)):
 		l.session = string(bs[len(creatingSession):])
+		// TODO: Atomicity.
+		l.remstat("session")
 		l.setstat("session", l.session)
 		l.debugf("filterbolt: session=%s", l.session)
 	case len(bs) != len(loadingArenaName) && bytes.HasPrefix(bs, []byte(loadingArenaName)):
 		l.arena = string(bs[len(loadingArenaName):])
+		// TODO: Atomicity.
+		l.remstat("arena")
 		l.setstat("arena", l.arena)
 		l.debugf("filterbolt: arena=%s", l.arena)
 	case bytes.HasPrefix(bs, []byte(playerAssigned)) || bytes.HasPrefix(bs, []byte(remoteCallbacks)):
