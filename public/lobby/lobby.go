@@ -55,10 +55,8 @@ func runc(ctx context.Context, stdout, stderr io.Writer, opts *Options, up bool)
 		if opts.Debug {
 			log.Debugf(stderr, "runc: stdout=%s", file)
 		}
-	}
-	if opts.LogDir != "" {
-		file := filepath.Join(opts.LogDir, "lobby.log")
-		w, err := os.Create(file)
+		file = filepath.Join(opts.LogDir, "lobby.log")
+		w, err = os.Create(file)
 		if err != nil {
 			return err
 		}

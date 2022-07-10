@@ -68,7 +68,6 @@ func NewLobbyCommand() *cobra.Command {
 	}
 	c.Flags().SortFlags = false
 	c.Flags().AddFlagSet(NewLobbyFlagSet(c.Name(), pflag.ContinueOnError))
-	c.MarkFlagRequired("session")
 	return &c
 }
 
@@ -105,15 +104,6 @@ func RunE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if opts.Password, err = f.GetString("password"); err != nil {
-		return err
-	}
-	if opts.SpecDir, err = f.GetString("specdir"); err != nil {
-		return err
-	}
-	if opts.StatDir, err = f.GetString("statdir"); err != nil {
-		return err
-	}
-	if opts.LogDir, err = f.GetString("logdir"); err != nil {
 		return err
 	}
 	if opts.LogState, err = f.GetBool("logstate"); err != nil {
@@ -158,8 +148,22 @@ func RunE(cmd *cobra.Command, args []string) error {
 	if opts.AdminTimeout, err = f.GetDuration("admintimeout"); err != nil {
 		return err
 	}
+	if opts.LogDir, err = f.GetString("logdir"); err != nil {
+		return err
+	}
+	if opts.SpecDir, err = f.GetString("specdir"); err != nil {
+		return err
+	}
+	if opts.StatDir, err = f.GetString("statdir"); err != nil {
+		return err
+	}
 	if opts.LogDir != "" {
 		if err := os.MkdirAll(opts.LogDir, 0o755); err != nil {
+			return err
+		}
+	}
+	if opts.SpecDir != "" {
+		if err := os.MkdirAll(opts.SpecDir, 0o755); err != nil {
 			return err
 		}
 	}
