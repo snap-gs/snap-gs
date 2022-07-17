@@ -25,10 +25,13 @@ Environment=SNAPGS_LOBBY_SESSION=%N
 Environment=SNAPGS_LOBBY_PASSWORD=%N
 Environment=SNAPGS_LOBBY_SPECDIR=spec
 Environment=SNAPGS_LOBBY_STATDIR=stat
+Environment=SNAPGS_LOBBY_FLAGDIR=flags
 Environment=SNAPGS_LOBBY_LOGDIR=logs
 Environment=SNAPGS_LOBBY_LOGSTATE=false
 Environment=SNAPGS_LOBBY_LOGMATCH=false
 Environment=SNAPGS_LOBBY_LOGCLEAN=false
+Environment=SNAPGS_LOBBY_MAXFAILS=3
+Environment=SNAPGS_LOBBY_MAXIDLES=-1
 Environment=SNAPGS_LOBBY_ADMINTIMEOUT=15m
 Environment=SNAPGS_LOBBY_TIMEOUT=15h
 Environment=SNAPGS_LOBBY_DEBUG=true
@@ -52,12 +55,15 @@ ExecStart=/opt/snap-gs/%j/%i/snap-gs lobby \
   --listen2=${SNAPGS_LOBBY_LISTEN2} \
   --session=${SNAPGS_LOBBY_SESSION} \
   --password=${SNAPGS_LOBBY_PASSWORD} \
+  --flagdir=${SNAPGS_LOBBY_FLAGDIR} \
   --specdir=${SNAPGS_LOBBY_SPECDIR} \
   --statdir=${SNAPGS_LOBBY_STATDIR} \
   --logdir=${SNAPGS_LOBBY_LOGDIR} \
   --logstate=${SNAPGS_LOBBY_LOGSTATE} \
   --logmatch=${SNAPGS_LOBBY_LOGMATCH} \
   --logclean=${SNAPGS_LOBBY_LOGCLEAN} \
+  --maxfails=${SNAPGS_LOBBY_MAXFAILS} \
+  --maxidles=${SNAPGS_LOBBY_MAXIDLES} \
   --admintimeout=${SNAPGS_LOBBY_ADMINTIMEOUT} \
   --timeout=${SNAPGS_LOBBY_TIMEOUT} \
   --debug=${SNAPGS_LOBBY_DEBUG}

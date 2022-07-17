@@ -19,7 +19,7 @@ import (
 
 var ErrLobbyMaxFails = errors.New("lobby max fails")
 
-func runc(ctx context.Context, stdout, stderr io.Writer, opts *Options, up bool) error {
+func runc(ctx context.Context, stdout, stderr io.Writer, opts Options, up bool) error {
 	exe, args, err := opts.ExeArgs()
 	if err != nil {
 		return err
@@ -107,6 +107,16 @@ func runc(ctx context.Context, stdout, stderr io.Writer, opts *Options, up bool)
 }
 
 func Run(ctx context.Context, stdout, stderr io.Writer, opts *Options) error {
+	if opts.FlagDir != "" {
+		cancel, err := opts.WatchFlagDir(ctx)
+		if err != nil {
+			return err
+		}
+		defer cancel()
+	}
+	if opts.Debug {
+		log.Debugf(stderr, "lobby.Run: opts=%+v", opts)
+	}
 	var runs, fails int
 	started := time.Now()
 	for ctx.Err() == nil {
@@ -121,6 +131,10 @@ func Run(ctx context.Context, stdout, stderr io.Writer, opts *Options) error {
 			down = err == nil
 			fi, err := os.Stat(filepath.Join(opts.SpecDir, "restart"))
 			restart = err == nil && started.Before(fi.ModTime())
+			if !restart {
+				fi, err := os.Stat(filepath.Join(opts.SpecDir, "start"))
+				restart = err == nil && started.Before(fi.ModTime())
+			}
 		}
 		if opts.Debug {
 			log.Debugf(stderr, "lobby.Run: specdir=%s up=%t stop=%t down=%t restart=%t", opts.SpecDir, up, stop, down, restart)
@@ -132,7 +146,7 @@ func Run(ctx context.Context, stdout, stderr io.Writer, opts *Options) error {
 		}
 		runs++
 		t := time.Now()
-		err = runc(ctx, stdout, stderr, opts, up)
+		err = runc(ctx, stdout, stderr, *opts, up)
 		if err != nil {
 			if fails >= opts.MaxFails {
 				return err
@@ -155,10 +169,10 @@ func Run(ctx context.Context, stdout, stderr io.Writer, opts *Options) error {
 			continue
 		}
 		// Lobby ended too soon.
-		fails++
 		if fails >= opts.MaxFails {
 			return ErrLobbyMaxFails
 		}
+		fails++
 		if opts.Debug {
 			log.Debugf(stderr, "lobby.Run: sleep: secs=%s runs=%d fails=%d", opts.MinUptime-uptime, runs, fails)
 		}

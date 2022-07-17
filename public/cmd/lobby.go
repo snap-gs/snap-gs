@@ -76,6 +76,7 @@ func NewLobbyFlagSet(name string, handler pflag.ErrorHandling) *pflag.FlagSet {
 	f.SortFlags = false
 	f.String("session", "", "set lobby name")
 	f.String("password", "", "set lobby auth")
+	f.String("flagdir", "", "read desired flags from <flagdir>/<flag>")
 	f.String("specdir", "", "read desired status from <specdir>/*")
 	f.String("statdir", "", "write current status to <statdir>/*")
 	f.String("logdir", "", "write compressed logs to <logdir>/*-lobby.log.gz")
@@ -151,6 +152,9 @@ func RunE(cmd *cobra.Command, args []string) error {
 	if opts.LogDir, err = f.GetString("logdir"); err != nil {
 		return err
 	}
+	if opts.FlagDir, err = f.GetString("flagdir"); err != nil {
+		return err
+	}
 	if opts.SpecDir, err = f.GetString("specdir"); err != nil {
 		return err
 	}
@@ -159,6 +163,11 @@ func RunE(cmd *cobra.Command, args []string) error {
 	}
 	if opts.LogDir != "" {
 		if err := os.MkdirAll(opts.LogDir, 0o755); err != nil {
+			return err
+		}
+	}
+	if opts.FlagDir != "" {
+		if err := os.MkdirAll(opts.FlagDir, 0o755); err != nil {
 			return err
 		}
 	}

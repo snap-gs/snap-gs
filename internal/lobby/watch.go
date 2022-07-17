@@ -44,9 +44,9 @@ func (l *Lobby) watcher() {
 		case players == 0 && l.Timeout > 0 && l.Timeout < since:
 			l.reason = ErrLobbyTimeout
 		case players == 0 && l.SpecDir != "":
-			for _, key := range []string{"up", "stop", "down", "restart"} {
+			for _, key := range []string{"up", "stop", "down", "start", "restart"} {
 				fi, err := os.Stat(filepath.Join(l.SpecDir, key))
-				if err == nil && (key != "restart" || l.t1.Before(fi.ModTime())) {
+				if err == nil && ((key != "start" && key != "restart") || l.t1.Before(fi.ModTime())) {
 					l.updatestate(l.states.Spec, key, fi.ModTime().UTC().Format(time.RFC3339))
 				} else {
 					l.updatestate(l.states.Spec, key, nil)
@@ -57,6 +57,8 @@ func (l *Lobby) watcher() {
 				l.reason = ErrLobbyDowned
 			case l.hasstate(l.states.Spec, "stop") && !l.hasstate(l.states.Spec, "up"):
 				l.reason = ErrLobbyStopped
+			case l.hasstate(l.states.Spec, "start") && !l.hasstate(l.states.Spec, "up"):
+				l.reason = ErrLobbyRestarted
 			case l.hasstate(l.states.Spec, "restart") && !l.hasstate(l.states.Spec, "up"):
 				l.reason = ErrLobbyRestarted
 			default:
