@@ -38,10 +38,9 @@ type Options struct {
 	Timeout      time.Duration
 	AdminTimeout time.Duration
 
-	MaxIdles    int
-	MaxFails    int
-	MinUptime   time.Duration
-	MinUpUptime time.Duration
+	MaxIdles  int
+	MaxFails  int
+	MinUptime time.Duration
 }
 
 const (
@@ -187,15 +186,6 @@ func (o *Options) WatchFlagDir(ctx context.Context) (func(), error) {
 				o.MinUptime, _ = time.ParseDuration(string(value))
 			default:
 				_ = json.Unmarshal(value, &o.MinUptime)
-			}
-		case "minupuptime":
-			switch {
-			case len(value) == 0:
-				o.MinUpUptime = in.MinUpUptime
-			case line:
-				o.MinUpUptime, _ = time.ParseDuration(string(value))
-			default:
-				_ = json.Unmarshal(value, &o.MinUpUptime)
 			}
 		case "admintimeout":
 			switch {

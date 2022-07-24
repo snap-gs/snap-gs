@@ -26,14 +26,35 @@ main () {
 	fi
 
 	if ! (command -v go && command -v git && command -v steamcmd && command -v inotifywait &&
-				command -v jq && command -v xattr && command -v gcc && command -v aws) > /dev/null
+				command -v jq && command -v xattr && command -v gcc && command -v aws && command -v tree) > /dev/null
 	then
 		sudo dpkg --add-architecture i386
 		sudo apt update
 		sudo debconf-set-selections <<<'steam steam/license note '
 		sudo debconf-set-selections <<<'steam steam/question select I AGREE'
-		sudo apt install --yes --no-install-recommends golang-go git inotify-tools steamcmd jq xattr build-essential awscli
+		sudo apt install --yes --no-install-recommends golang-go git inotify-tools steamcmd jq xattr build-essential awscli tree
 	fi
+	if ! (command -v s3sync) > /dev/null; then
+		curl -sL $SNAPGS_INSTALL_S3SYNCURL |
+			sudo tar --extract --gunzip --no-same-owner --directory=/usr/local/bin -- s3sync
+	fi
+
+	if ! id -u snap-gs > /dev/null 2>&1; then
+		sudo useradd --user-group --create-home --home-dir /opt/snap-gs --shell /usr/sbin/nologin --uid 1001 snap-gs
+	fi
+	if ! id -u snap-gs-remote > /dev/null 2>&1; then
+		sudo useradd --user-group --create-home --home-dir /opt/snap-gs-remote --shell /bin/bash --uid 1002 snap-gs-remote
+	fi
+	sudo -u snap-gs chmod 755 /opt/snap-gs
+	sudo -u snap-gs mkdir -p /opt/snap-gs/SnapshotVR
+	sudo -u snap-gs-remote chmod 755 /opt/snap-gs-remote
+	sudo -u snap-gs-remote mkdir -p -m 700 /opt/snap-gs-remote/.ssh
+	sudo -u snap-gs-remote touch /opt/snap-gs-remote/.ssh/authorized_keys
+	sudo -u snap-gs-remote chmod 600 /opt/snap-gs-remote/.ssh/authorized_keys
+	if [[ ! -s /opt/snap-gs-remote/.ssh/authorized_keys && -e ~/.ssh/authorized_keys ]]; then
+		sudo -u snap-gs-remote tee /opt/snap-gs-remote/.ssh/authorized_keys > /dev/null < ~/.ssh/authorized_keys
+	fi
+
 	if [[ ${SNAPGS_INSTALL_ACCOUNT-} ]]; then
 		:
 	elif SNAPGS_INSTALL_ACCOUNT=$(curl -s $AWS_METADATA_IDENTDOCURL | jq -er .accountId); then
@@ -48,21 +69,23 @@ main () {
 	else
 		SNAPGS_INSTALL_REGION=
 	fi
-	if ! (command -v s3sync) > /dev/null; then
-		curl -sL $SNAPGS_INSTALL_S3SYNCURL |
-			sudo tar --extract --gunzip --no-same-owner --directory=/usr/local/bin -- s3sync
+
+	if ! [[ -d ~/snap-gs ]]; then
+		git -C ~ clone https://github.com/snap-gs/snap-gs
+	elif git -C ~/snap-gs diff --quiet origin/HEAD; then
+		git -C ~/snap-gs remote update -p
+		git -C ~/snap-gs reset --hard origin/HEAD
 	fi
-	if ! id -u snap-gs > /dev/null 2>&1; then
-		sudo useradd --user-group --create-home --home-dir /opt/snap-gs --shell /usr/sbin/nologin --uid 1001 snap-gs
-		sudo -u snap-gs chmod 755 /opt/snap-gs
+	cd ~/snap-gs; go build -o /tmp/snap-gs ./cmd/snap-gs; cd $OLDPWD
+	sudo install --owner=snap-gs --group=snap-gs --mode=755 /tmp/snap-gs /opt/snap-gs/SnapshotVR/snap-gs.lock
+	if [[ $SNAPGS_INSTALL_ACCOUNT == 051813673067 ]]; then
+		gcc -nostartfiles -fpic -shared ~/snap-gs/hack/preload.c -o /tmp/preload.so -ldl -D_GNU_SOURCE
+		sudo install --owner=snap-gs --group=snap-gs --mode=755 /tmp/preload.so /opt/snap-gs/SnapshotVR/snap-gs-preload.so.lock
+		sudo install --owner=snap-gs --group=snap-gs --mode=755 ~/snap-gs/hack/sync.sh /opt/snap-gs/SnapshotVR/sync.sh.lock
+		sudo mv /opt/snap-gs/SnapshotVR/snap-gs-preload.so{.lock,}
+		sudo mv /opt/snap-gs/SnapshotVR/sync.sh{.lock,}
 	fi
-	if ! id -u snap-gs-remote > /dev/null 2>&1; then
-		sudo useradd --user-group --create-home --home-dir /opt/snap-gs-remote --shell /bin/bash --uid 1002 snap-gs-remote
-		sudo -u snap-gs-remote chmod 755 /opt/snap-gs-remote
-		sudo -u snap-gs-remote mkdir -m 700 /opt/snap-gs-remote/.ssh
-		sudo -u snap-gs-remote touch /opt/snap-gs-remote/.ssh/authorized_keys
-		sudo -u snap-gs-remote chmod 600 /opt/snap-gs-remote/.ssh/authorized_keys
-	fi
+	sudo mv /opt/snap-gs/SnapshotVR/snap-gs{.lock,}
 
 	ACCEL=
 	ADDR=$(curl -s $AWS_METADATA_IDENTDOCURL | jq -er .privateIp)
@@ -77,69 +100,43 @@ main () {
 	for k in ${!SNAPGS_INSTALL_LOBBIES[@]}; do
 		let 'i=SNAPGS_INSTALL_LOBBIES[k]'
 
-		sudo -u snap-gs chmod 755 /opt/snap-gs
+		sudo systemctl stop gs.snap.lobby-SnapshotVR@$i.path || true
 		sudo -u snap-gs mkdir -p /opt/snap-gs/SnapshotVR/$i/{flags,logs,stat,spec,sync}
-		if ! sudo -u snap-gs test -e /opt/snap-gs/SnapshotVR/$i/flags/session; then
-			sudo -u snap-gs touch /opt/snap-gs/SnapshotVR/$i/flags/session
-			sudo -u snap-gs chmod 666 /opt/snap-gs/SnapshotVR/$i/flags/session
-		fi
-		if ! sudo -u snap-gs test -e /opt/snap-gs/SnapshotVR/$i/flags/password; then
-			sudo -u snap-gs touch /opt/snap-gs/SnapshotVR/$i/flags/password
-			sudo -u snap-gs chmod 666 /opt/snap-gs/SnapshotVR/$i/flags/password
-		fi
-		if ! sudo -u snap-gs test -e /opt/snap-gs/SnapshotVR/$i/spec/start; then
-			sudo -u snap-gs touch /opt/snap-gs/SnapshotVR/$i/spec/start
-			sudo -u snap-gs chmod 666 /opt/snap-gs/SnapshotVR/$i/spec/start
-		fi
-		sudo -u snap-gs ln -s -f -T ../../snap-gs /opt/snap-gs/SnapshotVR/$i/spec/restart
-		if [[ ${#SNAPGS_INSTALL_LOBBIES[@]} -eq 1 ]] ; then
-			sudo -u snap-gs rm -f /opt/snap-gs/SnapshotVR/$i/{self,peer}
-			sudo -u snap-gs rm -f /opt/snap-gs/SnapshotVR/$i/spec/{up,down,stop}
-		else
-			sudo -u snap-gs ln -s -f -T stat /opt/snap-gs/SnapshotVR/$i/self
-			sudo -u snap-gs ln -s -f -T ../peer/full /opt/snap-gs/SnapshotVR/$i/spec/up
-			sudo -u snap-gs ln -s -f -T ../peer/idle /opt/snap-gs/SnapshotVR/$i/spec/down
-			if [[ $k -eq 0 ]]; then
-				sudo -u snap-gs ln -s -f -T ../peer/up /opt/snap-gs/SnapshotVR/$i/spec/stop
-				sudo -u snap-gs ln -s -f -T ../$((SNAPGS_INSTALL_LOBBIES[-1]))/self /opt/snap-gs/SnapshotVR/$i/peer
-			else
-				sudo -u snap-gs ln -s -f -T /dev/null /opt/snap-gs/SnapshotVR/$i/spec/stop
-				sudo -u snap-gs ln -s -f -T ../$((SNAPGS_INSTALL_LOBBIES[k-1]))/self /opt/snap-gs/SnapshotVR/$i/peer
-			fi
-		fi
 
 		unset ${!SNAPGS_LOBBY_@}
 		SNAPGS_LOBBY_SESSION=
 		SNAPGS_LOBBY_PASSWORD=
-		SNAPGS_LOBBY_ADMINTIMEOUT=
-		if sudo -u snap-gs test -e /opt/snap-gs/SnapshotVR/$i/env; then
+		if [[ -e /opt/snap-gs/SnapshotVR/$i/env ]]; then
 			while read -r; do
 				declare "${REPLY%%=*}=${REPLY##*=}"
-			done < <(sudo -u snap-gs grep -E '^SNAPGS_LOBBY_' /opt/snap-gs/SnapshotVR/$i/env)
+			done < <(grep -E '^SNAPGS_LOBBY_' /opt/snap-gs/SnapshotVR/$i/env)
 		fi
 		if [[ ${1-} ]] ; then
 			SNAPGS_LOBBY_SESSION=$1
-		fi
-		if [[ $# -gt 1 ]] ; then
-			SNAPGS_LOBBY_PASSWORD=$2
 		fi
 		if [[ $SNAPGS_LOBBY_SESSION == */ ]]; then
 			SNAPGS_LOBBY_SESSION="$SNAPGS_LOBBY_SESSION%s"
 		elif [[ $k -ne 0 && $SNAPGS_LOBBY_SESSION == ${SNAPGS_LOBBY_SESSION//%s} ]]; then
 			SNAPGS_LOBBY_SESSION="$SNAPGS_LOBBY_SESSION %s"
 		fi
+		printf -v SNAPGS_LOBBY_SESSION "$SNAPGS_LOBBY_SESSION" $i
+		if [[ $# -gt 1 ]] ; then
+			SNAPGS_LOBBY_PASSWORD=$2
+		fi
+		SNAPGS_LOBBY_MAXFAILS=3
+		SNAPGS_LOBBY_MAXIDLES=-1
+		SNAPGS_LOBBY_TIMEOUT=15h
+		SNAPGS_LOBBY_ADMINTIMEOUT=15m
 		if [[ $SNAPGS_LOBBY_PASSWORD ]]; then
-			SNAPGS_LOBBY_MAXFAILS=0
-			SNAPGS_LOBBY_MAXIDLES=0
 			SNAPGS_LOBBY_TIMEOUT=15m
 			SNAPGS_LOBBY_ADMINTIMEOUT=15h
-		else
-			SNAPGS_LOBBY_MAXFAILS=3
-			SNAPGS_LOBBY_MAXIDLES=-1
-			SNAPGS_LOBBY_TIMEOUT=15h
-			SNAPGS_LOBBY_ADMINTIMEOUT=15m
 		fi
-		printf -v SNAPGS_LOBBY_SESSION "$SNAPGS_LOBBY_SESSION" $i
+		if [[ $k -ne 0 ]]; then
+			SNAPGS_LOBBY_MAXFAILS=0
+			SNAPGS_LOBBY_MAXIDLES=0
+			SNAPGS_LOBBY_TIMEOUT=5m
+		fi
+
 		printf "%s=%s\n" \
 				SNAPGS_LOBBY_SESSION "$SNAPGS_LOBBY_SESSION" \
 				SNAPGS_LOBBY_PASSWORD "$SNAPGS_LOBBY_PASSWORD" \
@@ -147,7 +144,7 @@ main () {
 				SNAPGS_LOBBY_MAXIDLES "$SNAPGS_LOBBY_MAXIDLES" \
 				SNAPGS_LOBBY_TIMEOUT "$SNAPGS_LOBBY_TIMEOUT" \
 				SNAPGS_LOBBY_ADMINTIMEOUT "$SNAPGS_LOBBY_ADMINTIMEOUT" \
-		| sudo -u snap-gs tee /opt/snap-gs/SnapshotVR/$i/env
+		| sudo -u snap-gs tee /opt/snap-gs/SnapshotVR/$i/env.lock
 		if [[ $SNAPGS_INSTALL_ACCOUNT == 051813673067 ]]; then
 			PORT=$((27001+i))
 			SNAPGS_LOBBY_LISTEN=$ADDR:$PORT
@@ -164,66 +161,63 @@ main () {
 				SNAPGS_LOBBY_LISTEN2=$ADDR1:$PORT
 			fi
 			printf "%s=%s\n" \
-					SNAPGS_LOBBY_LOGSTATE true \
+					SNAPGS_LOBBY_LOGSTATE false \
 					SNAPGS_LOBBY_LOGMATCH true \
 					SNAPGS_LOBBY_LOGCLEAN true \
-					SNAPGS_LOBBY_LISTEN $SNAPGS_LOBBY_LISTEN \
-					SNAPGS_LOBBY_LISTEN1 $SNAPGS_LOBBY_LISTEN1 \
-					SNAPGS_LOBBY_LISTEN2 $SNAPGS_LOBBY_LISTEN2 \
-					SNAPGS_SYNC_STATEBUCKET public-snap-gs-lobby-$SNAPGS_INSTALL_REGION \
-					SNAPGS_SYNC_STATEREGION $SNAPGS_INSTALL_REGION \
-					SNAPGS_SYNC_MATCHBUCKET snap-gs-match-$SNAPGS_INSTALL_REGION \
-					SNAPGS_SYNC_MATCHREGION $SNAPGS_INSTALL_REGION \
-					SNAPGS_SYNC_CLEANBUCKET public-snap-gs-match-$SNAPGS_INSTALL_REGION \
-					SNAPGS_SYNC_CLEANREGION $SNAPGS_INSTALL_REGION \
-					SNAPGS_SYNC_LOGBUCKET snap-gs-lobby-$SNAPGS_INSTALL_REGION \
-					SNAPGS_SYNC_LOGREGION $SNAPGS_INSTALL_REGION \
-			| sudo -u snap-gs tee -a /opt/snap-gs/SnapshotVR/$i/env
+					SNAPGS_LOBBY_LISTEN "$SNAPGS_LOBBY_LISTEN" \
+					SNAPGS_LOBBY_LISTEN1 "$SNAPGS_LOBBY_LISTEN1" \
+					SNAPGS_LOBBY_LISTEN2 "$SNAPGS_LOBBY_LISTEN2" \
+			| sudo -u snap-gs tee -a /opt/snap-gs/SnapshotVR/$i/env.lock
+			if [[ $SNAPGS_LOBBY_SESSION != test\ * ]]; then
+				printf "%s=%s\n" \
+						SNAPGS_SYNC_STATEBUCKET "public-snap-gs-lobby-$SNAPGS_INSTALL_REGION" \
+						SNAPGS_SYNC_STATEREGION "$SNAPGS_INSTALL_REGION" \
+						SNAPGS_SYNC_MATCHBUCKET "snap-gs-match-$SNAPGS_INSTALL_REGION" \
+						SNAPGS_SYNC_MATCHREGION "$SNAPGS_INSTALL_REGION" \
+						SNAPGS_SYNC_CLEANBUCKET "public-snap-gs-match-$SNAPGS_INSTALL_REGION" \
+						SNAPGS_SYNC_CLEANREGION "$SNAPGS_INSTALL_REGION" \
+						SNAPGS_SYNC_LOGBUCKET "snap-gs-lobby-$SNAPGS_INSTALL_REGION" \
+						SNAPGS_SYNC_LOGREGION "$SNAPGS_INSTALL_REGION" \
+				| sudo -u snap-gs tee -a /opt/snap-gs/SnapshotVR/$i/env.lock
+			fi
+		fi
+		sudo mv /opt/snap-gs/SnapshotVR/$i/env{.lock,}
+
+		sudo -u snap-gs rm -f /opt/snap-gs/SnapshotVR/$i/{self,peer}
+		sudo -u snap-gs rm -f /opt/snap-gs/SnapshotVR/$i/spec/{up,start,restart,stop,down}
+		sudo -u snap-gs ln -s -f -T ../flags/start /opt/snap-gs/SnapshotVR/$i/spec/restart
+		sudo -u snap-gs ln -s -f -T ../flags/start /opt/snap-gs/SnapshotVR/$i/spec/start
+		if [[ ${#SNAPGS_INSTALL_LOBBIES[@]} -ne 1 ]]; then
+			if [[ $k -eq 0 ]]; then
+				j=$((SNAPGS_INSTALL_LOBBIES[-1]))
+			else
+				j=$((SNAPGS_INSTALL_LOBBIES[k-1]))
+			fi
+			sudo -u snap-gs ln -s -f -T ../peer/idle /opt/snap-gs/SnapshotVR/$i/spec/down
+			sudo -u snap-gs ln -s -f -T ../peer/up /opt/snap-gs/SnapshotVR/$i/spec/stop
+			sudo -u snap-gs ln -s -f -T ../$j/self /opt/snap-gs/SnapshotVR/$i/peer
+			sudo -u snap-gs ln -s -f -T stat /opt/snap-gs/SnapshotVR/$i/self
+		fi
+		if [[ $i == 1 && $SNAPGS_LOBBY_SESSION != test\ * ]]; then
+			sudo -u snap-gs touch /opt/snap-gs/SnapshotVR/$i/spec/up
 		fi
 
-	done
+		sudo -u snap-gs touch /opt/snap-gs/SnapshotVR/$i/flags/{start,session,password}
+		sudo -u snap-gs chmod 666 /opt/snap-gs/SnapshotVR/$i/flags/{start,session,password}
 
-	for repo in https://github.com/snap-gs/snap-gs; do
-		if ! [[ -d ~/${repo##*/} ]]; then
-			git -C ~ clone $repo
-		elif git -C ~/${repo##*/} diff --quiet origin/HEAD; then
-			git -C ~/${repo##*/} remote update -p
-			git -C ~/${repo##*/} reset --hard origin/HEAD
-		fi
 	done
 
 	sudo ln -s -f ~/snap-gs/etc/sysctl.d/* /etc/sysctl.d
 	sudo sysctl -q -p ~/snap-gs/etc/sysctl.d/*
 	sudo systemctl link ~/snap-gs/etc/systemd/system/*
 	sudo systemctl daemon-reload
-
-	cd ~/snap-gs; go build -o /tmp/snap-gs ./cmd/snap-gs; cd $OLDPWD
-	sudo install --owner=snap-gs --group=snap-gs --mode=755 /tmp/snap-gs /opt/snap-gs/SnapshotVR/snap-gs.lock
-	if [[ $SNAPGS_INSTALL_ACCOUNT == 051813673067 ]]; then
-		gcc -nostartfiles -fpic -shared ~/snap-gs/hack/preload.c -o /tmp/preload.so -ldl -D_GNU_SOURCE
-		sudo install --owner=snap-gs --group=snap-gs --mode=755 /tmp/preload.so /opt/snap-gs/SnapshotVR/snap-gs-preload.so.lock
-		sudo install --owner=snap-gs --group=snap-gs --mode=755 ~/snap-gs/hack/sync.sh /opt/snap-gs/SnapshotVR/sync.sh.lock
-		sudo mv /opt/snap-gs/SnapshotVR/snap-gs-preload.so{.lock,}
-		sudo mv /opt/snap-gs/SnapshotVR/sync.sh{.lock,}
-	fi
-	sudo mv /opt/snap-gs/SnapshotVR/snap-gs{.lock,}
-
 	for i in ${SNAPGS_INSTALL_LOBBIES[@]}; do
-		if [[ ${1-} != *-test ]] && [[ $SNAPGS_INSTALL_ACCOUNT == 051813673067 ]]; then
-			sudo systemctl enable gs.snap.lobby.sync-SnapshotVR@$i.path
-			sudo systemctl restart gs.snap.lobby.sync-SnapshotVR@$i.path
-		fi
+		sudo systemctl enable gs.snap.lobby.sync-SnapshotVR@$i.path
+		sudo systemctl restart gs.snap.lobby.sync-SnapshotVR@$i.path
 		sudo systemctl enable gs.snap.lobby.idle-SnapshotVR@$i.path
 		sudo systemctl restart gs.snap.lobby.idle-SnapshotVR@$i.path
 		sudo systemctl enable gs.snap.lobby-SnapshotVR@$i.path
 		sudo systemctl restart gs.snap.lobby-SnapshotVR@$i.path
-		if [[ ${1-} != *-test && -z ${2-} && $i == 1 ]]; then
-			sudo systemctl enable gs.snap.lobby-SnapshotVR@$i.timer
-			sudo systemctl restart gs.snap.lobby-SnapshotVR@$i.timer
-		else
-			sudo systemctl disable gs.snap.lobby-SnapshotVR@$i.timer
-			sudo systemctl stop gs.snap.lobby-SnapshotVR@$i.timer
-		fi
 	done
 
 	echo DONE

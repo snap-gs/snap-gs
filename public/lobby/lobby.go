@@ -19,7 +19,7 @@ import (
 
 var ErrLobbyMaxFails = errors.New("lobby max fails")
 
-func runc(ctx context.Context, stdout, stderr io.Writer, opts Options, up bool) error {
+func runc(ctx context.Context, stdout, stderr io.Writer, opts Options) error {
 	exe, args, err := opts.ExeArgs()
 	if err != nil {
 		return err
@@ -87,23 +87,9 @@ func runc(ctx context.Context, stdout, stderr io.Writer, opts Options, up bool) 
 		l.LogState = opts.LogState
 		l.LogClean = opts.LogClean
 	}
-	if up {
-		l.MinUptime = opts.MinUpUptime
-		l.MaxIdles = -1
-	}
 	err = l.Run(ctx, stdout, stderr, exe, args...)
-	log.Errorf(stderr, "runc: error: %+v minuptime=%s uptime=%s", err, l.MinUptime, l.Uptime())
-	if !up {
-		return err
-	}
-	switch err {
-	case lobby.ErrLobbyTimeout, lobby.ErrLobbyIdleTimeout, lobby.ErrLobbyAdminTimeout:
-		return nil
-	case lobby.ErrLobbyRestarted, lobby.ErrLobbyStopped, lobby.ErrLobbyDowned:
-		return nil
-	default:
-		return err
-	}
+	log.Errorf(stderr, "runc: error: %+v uptime=%s", err, l.Uptime())
+	return err
 }
 
 func Run(ctx context.Context, stdout, stderr io.Writer, opts *Options) error {
@@ -119,34 +105,29 @@ func Run(ctx context.Context, stdout, stderr io.Writer, opts *Options) error {
 	}
 	var runs, fails int
 	started := time.Now()
+	const floor = 15 * time.Second
 	for ctx.Err() == nil {
 		var err error
-		var up, stop, down, restart bool
+		var stop, down, restart bool
 		if opts.SpecDir != "" {
-			_, err = os.Stat(filepath.Join(opts.SpecDir, "up"))
-			up = err == nil
-			_, err = os.Stat(filepath.Join(opts.SpecDir, "stop"))
-			stop = err == nil
 			_, err = os.Stat(filepath.Join(opts.SpecDir, "down"))
 			down = err == nil
-			fi, err := os.Stat(filepath.Join(opts.SpecDir, "restart"))
+			fi, err := os.Stat(filepath.Join(opts.SpecDir, "stop"))
+			stop = err == nil && started.Before(fi.ModTime())
+			fi, err = os.Stat(filepath.Join(opts.SpecDir, "restart"))
 			restart = err == nil && started.Before(fi.ModTime())
-			if !restart {
-				fi, err := os.Stat(filepath.Join(opts.SpecDir, "start"))
-				restart = err == nil && started.Before(fi.ModTime())
-			}
 		}
 		if opts.Debug {
-			log.Debugf(stderr, "lobby.Run: specdir=%s up=%t stop=%t down=%t restart=%t", opts.SpecDir, up, stop, down, restart)
+			log.Debugf(stderr, "lobby.Run: specdir=%s stop=%t down=%t restart=%t", opts.SpecDir, stop, down, restart)
 		}
 		switch {
-		case down, stop && !up, restart && !up:
+		case down, stop && runs != 0, restart && runs != 0:
 			// TODO: Exit codes for the above.
 			return ctx.Err()
 		}
 		runs++
 		t := time.Now()
-		err = runc(ctx, stdout, stderr, *opts, up)
+		err = runc(ctx, stdout, stderr, *opts)
 		if err != nil {
 			if fails >= opts.MaxFails {
 				return err
@@ -158,12 +139,12 @@ func Run(ctx context.Context, stdout, stderr io.Writer, opts *Options) error {
 		}
 		uptime := time.Since(t).Round(time.Millisecond)
 		if opts.Debug {
-			log.Debugf(stderr, "lobby.Run: uptime=%s minuptime=%s runs=%d fails=%d", uptime, opts.MinUptime, runs, fails)
+			log.Debugf(stderr, "lobby.Run: uptime=%s runs=%d fails=%d", uptime, runs, fails)
 		}
 		if opts.MaxIdles >= 0 {
 			return nil
 		}
-		if opts.MinUptime < uptime {
+		if uptime > floor {
 			// Reset after healthy lobby.
 			fails = 0
 			continue
@@ -174,11 +155,11 @@ func Run(ctx context.Context, stdout, stderr io.Writer, opts *Options) error {
 		}
 		fails++
 		if opts.Debug {
-			log.Debugf(stderr, "lobby.Run: sleep: secs=%s runs=%d fails=%d", opts.MinUptime-uptime, runs, fails)
+			log.Debugf(stderr, "lobby.Run: sleep: secs=%s runs=%d fails=%d", floor-uptime, runs, fails)
 		}
 		// Avoid busy loops from unknown bugs.
 		select {
-		case <-time.After(opts.MinUptime - uptime):
+		case <-time.After(floor - uptime):
 			continue
 		case <-ctx.Done():
 			break

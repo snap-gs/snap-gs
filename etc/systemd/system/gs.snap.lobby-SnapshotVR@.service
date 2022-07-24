@@ -1,10 +1,6 @@
 [Unit]
 Description=%j #%i Lobby Service
 AssertPathExists=/opt/snap-gs/%j/%i
-# Deny if 'down' exists. Allow if 'stop' is missing or 'up' exists.
-ConditionPathExists=!/opt/snap-gs/%j/%i/spec/down
-ConditionPathExists=|!/opt/snap-gs/%j/%i/spec/stop
-ConditionPathExists=|/opt/snap-gs/%j/%i/spec/up
 After=network-online.target
 
 
@@ -36,6 +32,7 @@ Environment=SNAPGS_LOBBY_ADMINTIMEOUT=15m
 Environment=SNAPGS_LOBBY_TIMEOUT=15h
 Environment=SNAPGS_LOBBY_DEBUG=true
 Environment=SteamAppId=1948990
+ExecCondition=/bin/bash -c [[\s-e\sspec/up\s&&\s-e\speer/up\s&&\s!\s-e\speer/full\s||\s-e\sflags/down\s||\s-e\sspec/down\s]]\s&&\ssleep\s15\s&&\sexit\s1\s||\sexit\s0
 ExecStartPre=/usr/bin/rm -f /opt/snap-gs/%j/%i/stat/idle
 ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/SteamApps/common
 ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/appcache

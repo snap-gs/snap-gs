@@ -9,7 +9,7 @@ import (
 func (l *Lobby) watcher() {
 	defer l.cwg.Done()
 	defer l.debugf("watcher: done")
-	l.debugf("watcher: timeout=%s admintimeout=%s", l.Timeout, l.AdminTimeout)
+	l.debugf("watcher: minuptime=%s timeout=%s admintimeout=%s", l.MinUptime, l.Timeout, l.AdminTimeout)
 	if l.Timeout <= 0 && l.AdminTimeout <= 0 && l.SpecDir == "" {
 		return
 	}
@@ -33,10 +33,6 @@ func (l *Lobby) watcher() {
 			continue
 		}
 		since := time.Since(l.m.Timestamp).Round(100 * time.Microsecond)
-		if since < l.MinUptime {
-			l.savestate()
-			continue
-		}
 		players, bots := l.players.Count()
 		switch {
 		case players != 0 && l.AdminTimeout > 0 && l.AdminTimeout < since:
@@ -44,9 +40,9 @@ func (l *Lobby) watcher() {
 		case players == 0 && l.Timeout > 0 && l.Timeout < since:
 			l.reason = ErrLobbyTimeout
 		case players == 0 && l.SpecDir != "":
-			for _, key := range []string{"up", "stop", "down", "start", "restart"} {
+			for _, key := range []string{"down", "stop", "restart"} {
 				fi, err := os.Stat(filepath.Join(l.SpecDir, key))
-				if err == nil && ((key != "start" && key != "restart") || l.t1.Before(fi.ModTime())) {
+				if err == nil && (key != "restart" || l.t1.Before(fi.ModTime())) {
 					l.updatestate(l.states.Spec, key, fi.ModTime().UTC().Format(time.RFC3339))
 				} else {
 					l.updatestate(l.states.Spec, key, nil)
@@ -55,11 +51,9 @@ func (l *Lobby) watcher() {
 			switch {
 			case l.hasstate(l.states.Spec, "down"):
 				l.reason = ErrLobbyDowned
-			case l.hasstate(l.states.Spec, "stop") && !l.hasstate(l.states.Spec, "up"):
+			case l.hasstate(l.states.Spec, "stop") && since > l.MinUptime:
 				l.reason = ErrLobbyStopped
-			case l.hasstate(l.states.Spec, "start") && !l.hasstate(l.states.Spec, "up"):
-				l.reason = ErrLobbyRestarted
-			case l.hasstate(l.states.Spec, "restart") && !l.hasstate(l.states.Spec, "up"):
+			case l.hasstate(l.states.Spec, "restart") && since > l.MinUptime:
 				l.reason = ErrLobbyRestarted
 			default:
 				l.savestate()

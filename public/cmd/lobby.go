@@ -85,8 +85,7 @@ func NewLobbyFlagSet(name string, handler pflag.ErrorHandling) *pflag.FlagSet {
 	f.Bool("logclean", false, "write anonymized clean.json to <logdir>/*-clean.json.gz")
 	f.Int("maxidles", -1, "max idles allowed in total before graceful restart")
 	f.Int("maxfails", 3, "max fails allowed in a row across graceful restarts")
-	f.Duration("minuptime", time.Second*15, "min uptime expected before graceful restart")
-	f.Duration("minupuptime", time.Minute*5, "<minuptime> when <specdir>/up set")
+	f.Duration("minuptime", time.Minute*5, "min uptime before graceful restart")
 	f.Duration("admintimeout", time.Minute*15, "timeout when admin delays match")
 	f.Duration("timeout", time.Hour*15, "timeout when no players join")
 	f.String("listen", "0.0.0.0:27002", "bind local ip:port")
@@ -141,9 +140,6 @@ func RunE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if opts.Timeout, err = f.GetDuration("timeout"); err != nil {
-		return err
-	}
-	if opts.MinUpUptime, err = f.GetDuration("minupuptime"); err != nil {
 		return err
 	}
 	if opts.AdminTimeout, err = f.GetDuration("admintimeout"); err != nil {
