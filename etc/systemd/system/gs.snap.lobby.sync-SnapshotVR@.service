@@ -1,0 +1,27 @@
+[Unit]
+Description=%j #%i Lobby Sync Service
+ConditionPathExists=/opt/snap-gs/%j/%i/logs
+ConditionPathExists=/opt/snap-gs/%j/%i/sync
+Before=gs.snap.lobby-%j@%i.service
+
+
+[Service]
+Type=exec
+User=snap-gs
+Group=snap-gs
+WorkingDirectory=/opt/snap-gs/%j/%i
+EnvironmentFile=-/opt/snap-gs/%j/%i/env
+Environment=HOME=/opt/snap-gs/%j/%i
+Environment=SNAPGS_SYNC_LOGBUCKET=
+Environment=SNAPGS_SYNC_LOGREGION=
+Environment=SNAPGS_SYNC_STATEBUCKET=
+Environment=SNAPGS_SYNC_STATEREGION=
+Environment=SNAPGS_SYNC_MATCHBUCKET=
+Environment=SNAPGS_SYNC_MATCHREGION=
+Environment=SNAPGS_SYNC_CLEANBUCKET=
+Environment=SNAPGS_SYNC_CLEANREGION=
+ExecCondition=/usr/bin/bash -c mv\slogs/*.gz\ssync;\sgrep\s-q\sSNAPGS_SYNC_\senv
+ExecStartPre=/usr/bin/cp -a /opt/snap-gs/%j/sync.sh /opt/snap-gs/%j/%i/sync.sh.lock
+ExecStartPre=/usr/bin/mv /opt/snap-gs/%j/%i/sync.sh.lock /opt/snap-gs/%j/%i/sync.sh
+ExecStart=/opt/snap-gs/%j/%i/sync.sh /opt/snap-gs/%j/%i/sync /opt/snap-gs/%j/%i/sync
+Nice=3
