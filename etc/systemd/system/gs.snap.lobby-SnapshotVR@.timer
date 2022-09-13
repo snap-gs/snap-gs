@@ -1,0 +1,22 @@
+[Unit]
+Description=%j #%i Lobby Timer
+
+
+[Install]
+WantedBy=timers.target
+
+
+[Timer]
+Persistent=true
+OnCalendar=*-*-* 21:55:00
+OnCalendar=*-*-* 22:25:00
+OnCalendar=*-*-* 22:55:00
+OnCalendar=*-*-* 23:25:00
+OnCalendar=*-*-* 23:55:00
+OnCalendar=*-*-* 00:25:00
+OnCalendar=*-*-* 00:55:00
+OnCalendar=*-*-* 01:25:00
+OnCalendar=*-*-* 01:55:00
+OnCalendar=*-*-* 02:25:00
+OnCalendar=*-*-* 02:55:00
+OnCalendar=*-*-* 03:25:00

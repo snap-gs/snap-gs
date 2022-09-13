@@ -1,0 +1,56 @@
+[Unit]
+Description=%j #%i Lobby Service
+AssertPathExists=/opt/snap-gs/%j/%i
+After=network-online.target
+
+
+[Service]
+# Context/Defaults.
+Type=exec
+User=snap-gs
+Group=snap-gs
+BindPaths=/opt/snap-gs/%j/%i
+WorkingDirectory=/opt/snap-gs/%j/%i
+EnvironmentFile=-/opt/snap-gs/%j/%i/env
+Environment=HOME=/opt/snap-gs/%j/%i
+Environment=SNAPGS_LOBBY_PIDFILE=cgroup:main?cpu.max=max+1000,cgroup:busy?cpu.max=1000+1000,cgroup:idle?cpu.max=1000+10000
+Environment=SNAPGS_LOBBY_SESSION=test\s%j\s%i
+Environment=SNAPGS_LOBBY_FLAGDIR=flag
+Environment=SNAPGS_LOBBY_SPECDIR=spec
+Environment=SNAPGS_LOBBY_STATDIR=stat
+Environment=SNAPGS_LOBBY_LOGDIR=log
+Environment=SNAPGS_LOBBY_DEBUG=true
+Environment=SteamAppId=1948990
+ExecCondition=/bin/sh -c \
+	!\stest\s-e\sflag/up\s-a\s-e\sspec/stop\s-a\s!\s-e\sspec/up\s-o\s-e\sflag/down\s-o\s-e\sspec/down\s||\s!\ssleep\s15
+ExecCondition=/bin/sh -c \
+	!\stest\s-e\sflag/up\s-a\s-e\sspec/peer/up\s-a\s!\s-e\sspec/peer/full\s-o\s-e\sspec/peer/idle\s||\s!\ssleep\s15
+ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/SteamApps/common
+ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/appcache
+ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/config
+ExecStartPre=/usr/bin/mkdir -p ${HOME}/.local/share/Steam/.steam/logs
+ExecStartPre=/usr/bin/mkdir -p ${HOME}/.steam
+ExecStartPre=/usr/bin/ln -s -f -T ${HOME}/.local/share/Steam ${HOME}/.steam/root
+ExecStartPre=/usr/bin/ln -s -f -T ${HOME}/.local/share/Steam ${HOME}/.steam/steam
+ExecStartPre=/usr/games/steamcmd +login\sanonymous +app_update\s${SteamAppId}\svalidate +quit
+ExecStartPre=-/usr/bin/rm -f snap-gs-preload.so
+ExecStartPre=-/usr/bin/cp -a ../snap-gs-preload.so snap-gs-preload.so
+ExecStartPre=/usr/bin/cp -a ../snap-gs snap-gs
+ExecStart=/opt/snap-gs/%j/%i/snap-gs lobby
+
+# Latency/Availability.
+RestartForceExitStatus=NOTCONFIGURED
+SuccessExitStatus=NOTCONFIGURED
+CPUQuotaPeriodSec=1ms
+CPUQuota=110%
+Nice=-3
+
+# Isolation/Security.
+Delegate=true
+RemoveIPC=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHostname=true
+ProtectKernelTunables=true
+CapabilityBoundingSet=

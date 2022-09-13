@@ -1,0 +1,15 @@
+[Unit]
+Description=%j #%i Lobby Path
+
+
+[Install]
+WantedBy=multi-user.target
+
+
+[Path]
+PathModified=/opt/snap-gs/%j/%i/flag/restart
+PathModified=/opt/snap-gs/%j/%i/spec/restart
+
+PathExists=/opt/snap-gs/%j/%i/flag/up
+PathExists=/opt/snap-gs/%j/%i/spec/up
+PathExists=/opt/snap-gs/%j/%i/spec/peer/full

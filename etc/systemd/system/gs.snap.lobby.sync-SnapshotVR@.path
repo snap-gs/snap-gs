@@ -1,0 +1,10 @@
+[Unit]
+Description=%j #%i Lobby Sync Path
+
+
+[Install]
+WantedBy=multi-user.target
+
+
+[Path]
+PathExistsGlob=/opt/snap-gs/%j/%i/log/*.gz
