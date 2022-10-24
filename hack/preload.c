@@ -101,10 +101,12 @@ ssize_t send(int fd, const void *buf, size_t size, int flags) {
 
         }
 
+        /*
         fprintf(stderr, "preload.c: send[%lu-%lu+%lu%+d]: %d, %d, \"%s\" (%lu) -> %d, %d, \"%s\" (%lu)\n",
                 size, last-data, send_buf1_size, (int)send_buf2_size-(int)send_buf1_size,
                 send_buf1[0], send_buf1[1], &send_buf1[2], send_buf1_size,
                 send_buf2[0], send_buf2[1], &send_buf2[2], send_buf2_size);
+        */
 
         memcpy(data, send_buf2, send_buf1_size);
         if ((data += send_buf1_size) >= last)
