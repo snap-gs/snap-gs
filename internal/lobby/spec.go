@@ -33,6 +33,27 @@ type Spec struct {
 	FlagForceStop time.Time
 }
 
+func (s *Spec) ReasonAfter(t time.Time, dur, min, max time.Duration) (bool, error) {
+	switch {
+	case s.ForceDownAfter(t):
+		return true, ErrLobbyDowned
+	case s.ForceStopAfter(t):
+		return true, ErrLobbyStopped
+	case s.ForceRestartAfter(t):
+		return true, ErrLobbyRestarted
+	case !s.PeerIdle.IsZero() || s.DownAfter(t):
+		return false, ErrLobbyDowned
+	case dur > min && (!s.PeerUp.IsZero() || s.StopAfter(t)):
+		return false, ErrLobbyStopped
+	case s.RestartAfter(t):
+		return false, ErrLobbyRestarted
+	case max > 0 && max < dur:
+		return false, ErrLobbyTimeout
+	default:
+		return false, nil
+	}
+}
+
 func (s *Spec) DownAfter(t time.Time) bool {
 	switch {
 	case s == nil:

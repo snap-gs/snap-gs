@@ -54,25 +54,12 @@ func (l *Lobby) watcher(ctx context.Context) {
 		if l.m.MatchID != "" {
 			continue
 		}
-		var reason error
-		switch {
-		case l.spec.ForceStopAfter(l.t1):
-			reason = ErrLobbyStopped
-		case l.spec.ForceRestartAfter(l.t1):
-			reason = ErrLobbyRestarted
-		case players != 0:
-			switch {
-			case l.opts.AdminTimeout > 0 && l.opts.AdminTimeout < since:
-				reason = ErrLobbyAdminTimeout
-			}
-		case !l.spec.PeerIdle.IsZero() || l.spec.DownAfter(l.t1):
-			reason = ErrLobbyDowned
-		case since > l.opts.MinUptime && (!l.spec.PeerUp.IsZero() || l.spec.StopAfter(l.t1)):
-			reason = ErrLobbyStopped
-		case l.spec.RestartAfter(l.t1):
-			reason = ErrLobbyRestarted
-		case l.opts.Timeout > 0 && l.opts.Timeout < since:
-			reason = ErrLobbyTimeout
+		force, reason := l.spec.ReasonAfter(l.t1, since, l.opts.MinUptime, l.opts.Timeout)
+		if players != 0 && !force {
+			continue
+		}
+		if players != 0 && reason == nil && l.opts.AdminTimeout > 0 && l.opts.AdminTimeout < since {
+			reason = ErrLobbyAdminTimeout
 		}
 		if reason != nil {
 			l.debugf("watcher: cancel: %s players=%d bots=%d since=%s", reason, players, bots, since)

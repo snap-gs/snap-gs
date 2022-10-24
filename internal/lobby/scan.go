@@ -223,6 +223,9 @@ func (l *Lobby) filterbolt(fd int, bs []byte) ([]byte, error) {
 			l.collect()
 			if !l.changed || l.opts.MaxFails == 0 {
 				l.newstat("idle")
+			} else if _, err := l.spec.ReasonAfter(l.t1, 0, l.opts.MinUptime, l.opts.Timeout); err != nil {
+				l.Cancel(err)
+				l.debugf("filterbolt: players=%d bots=%d changed=%t reason=%s", players, bots, l.changed, l.reason)
 			} else {
 				l.Cancel(ErrLobbyIdleTimeout)
 				l.debugf("filterbolt: players=%d bots=%d changed=%t reason=%s", players, bots, l.changed, l.reason)
