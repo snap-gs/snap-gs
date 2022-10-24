@@ -3,11 +3,18 @@ package lobby
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/snap-gs/snap-gs/internal/watch"
+)
+
+var (
+	ErrLobbyDowned    = errors.New("lobby downed")
+	ErrLobbyStopped   = errors.New("lobby stopped")
+	ErrLobbyRestarted = errors.New("lobby restarted")
 )
 
 type Spec struct {
@@ -33,7 +40,11 @@ type Spec struct {
 	FlagForceStop time.Time
 }
 
+// ReasonAfter returns a 'force' hint and timeout reason (if any).
 func (s *Spec) ReasonAfter(t time.Time, dur, min, max time.Duration) (bool, error) {
+	// These errors control the behavior of systemd. Codes that push the server
+	// down faster MUST be listed first to elicit expected behavior. Specs can
+	// and will have identical timestamps.
 	switch {
 	case s.ForceDownAfter(t):
 		return true, ErrLobbyDowned
@@ -41,9 +52,9 @@ func (s *Spec) ReasonAfter(t time.Time, dur, min, max time.Duration) (bool, erro
 		return true, ErrLobbyStopped
 	case s.ForceRestartAfter(t):
 		return true, ErrLobbyRestarted
-	case !s.PeerIdle.IsZero() || s.DownAfter(t):
+	case s.DownAfter(t):
 		return false, ErrLobbyDowned
-	case dur > min && (!s.PeerUp.IsZero() || s.StopAfter(t)):
+	case dur > min && s.StopAfter(t):
 		return false, ErrLobbyStopped
 	case s.RestartAfter(t):
 		return false, ErrLobbyRestarted
@@ -62,7 +73,7 @@ func (s *Spec) DownAfter(t time.Time) bool {
 		return true
 	case s.FlagDown.After(t):
 		return true
-	case s.ForceDownAfter(t):
+	case !s.PeerIdle.IsZero():
 		return true
 	default:
 		return false
@@ -90,7 +101,7 @@ func (s *Spec) StopAfter(t time.Time) bool {
 		return true
 	case s.FlagStop.After(t):
 		return true
-	case s.ForceStopAfter(t):
+	case !s.PeerUp.IsZero():
 		return true
 	default:
 		return false
@@ -117,8 +128,6 @@ func (s *Spec) RestartAfter(t time.Time) bool {
 	case s.Restart.After(t):
 		return true
 	case s.FlagRestart.After(t):
-		return true
-	case s.ForceRestartAfter(t):
 		return true
 	default:
 		return false

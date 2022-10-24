@@ -26,9 +26,6 @@ var (
 	ErrLobbyAdminTimeout = errors.New("lobby admin timeout")
 	ErrLobbyDisconnected = errors.New("lobby disconnected")
 	ErrLobbyMaxFails     = errors.New("lobby max fails")
-	ErrLobbyRestarted    = errors.New("lobby restarted")
-	ErrLobbyStopped      = errors.New("lobby stopped")
-	ErrLobbyDowned       = errors.New("lobby downed")
 )
 
 type Lobby struct {
