@@ -21,9 +21,7 @@ import (
 var (
 	ErrLobbyBad          = errors.New("lobby bad")
 	ErrLobbyDone         = errors.New("lobby done")
-	ErrLobbyTimeout      = errors.New("lobby timeout")
 	ErrLobbyIdleTimeout  = errors.New("lobby idle timeout")
-	ErrLobbyAdminTimeout = errors.New("lobby admin timeout")
 	ErrLobbyDisconnected = errors.New("lobby disconnected")
 	ErrLobbyMaxFails     = errors.New("lobby max fails")
 )

@@ -2,7 +2,13 @@ package lobby
 
 import (
 	"context"
+	"errors"
 	"time"
+)
+
+var (
+	ErrLobbyTimeout      = errors.New("lobby timeout")
+	ErrLobbyAdminTimeout = errors.New("lobby admin timeout")
 )
 
 func (l *Lobby) watcher(ctx context.Context) {
@@ -47,24 +53,30 @@ func (l *Lobby) watcher(ctx context.Context) {
 		players, bots := l.players.Count()
 		since := time.Since(lastidle).Round(100 * time.Microsecond)
 		if l.spec.ForceDownAfter(l.t1) {
-			l.debugf("watcher: cancel: %s players=%d bots=%d since=%s", ErrLobbyDowned, players, bots, since)
+			l.debugf("watcher: cancel: %s players=%d bots=%d since=%s force=true", ErrLobbyDowned, players, bots, since)
 			l.Cancel(ErrLobbyDowned)
 			return
 		}
 		if l.m.MatchID != "" {
 			continue
 		}
-		force, reason := l.spec.ReasonAfter(l.t1, since, l.opts.MinUptime, l.opts.Timeout)
-		if players != 0 && !force {
+		force, reason := l.spec.ReasonAfter(l.t1, since, l.opts.MinUptime)
+		if players != 0 {
+			if !force {
+				// Do not kick players from idle lobby unless forced.
+				reason = nil
+			}
+			if reason == nil && l.opts.AdminTimeout > 0 && l.opts.AdminTimeout < since {
+				reason = ErrLobbyAdminTimeout
+			}
+		} else if l.opts.Timeout > 0 && l.opts.Timeout < since {
+			reason = ErrLobbyTimeout
+		}
+		if reason == nil {
 			continue
 		}
-		if players != 0 && reason == nil && l.opts.AdminTimeout > 0 && l.opts.AdminTimeout < since {
-			reason = ErrLobbyAdminTimeout
-		}
-		if reason != nil {
-			l.debugf("watcher: cancel: %s players=%d bots=%d since=%s", reason, players, bots, since)
-			l.Cancel(reason)
-			return
-		}
+		l.debugf("watcher: cancel: %s players=%d bots=%d since=%s force=%t", reason, players, bots, since, force)
+		l.Cancel(reason)
+		return
 	}
 }

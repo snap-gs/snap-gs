@@ -41,7 +41,7 @@ type Spec struct {
 }
 
 // ReasonAfter returns a 'force' hint and timeout reason (if any).
-func (s *Spec) ReasonAfter(t time.Time, dur, min, max time.Duration) (bool, error) {
+func (s *Spec) ReasonAfter(t time.Time, idle, grace time.Duration) (bool, error) {
 	// These errors control the behavior of systemd. Codes that push the server
 	// down faster MUST be listed first to elicit expected behavior. Specs can
 	// and will have identical timestamps.
@@ -54,12 +54,10 @@ func (s *Spec) ReasonAfter(t time.Time, dur, min, max time.Duration) (bool, erro
 		return true, ErrLobbyRestarted
 	case s.DownAfter(t):
 		return false, ErrLobbyDowned
-	case dur > min && s.StopAfter(t):
+	case s.StopAfter(t, idle, grace):
 		return false, ErrLobbyStopped
 	case s.RestartAfter(t):
 		return false, ErrLobbyRestarted
-	case max > 0 && max < dur:
-		return false, ErrLobbyTimeout
 	default:
 		return false, nil
 	}
@@ -93,9 +91,11 @@ func (s *Spec) ForceDownAfter(t time.Time) bool {
 	}
 }
 
-func (s *Spec) StopAfter(t time.Time) bool {
+func (s *Spec) StopAfter(t time.Time, idle, grace time.Duration) bool {
 	switch {
 	case s == nil:
+		return false
+	case idle < grace:
 		return false
 	case s.Stop.After(t):
 		return true

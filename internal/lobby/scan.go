@@ -223,12 +223,12 @@ func (l *Lobby) filterbolt(fd int, bs []byte) ([]byte, error) {
 			l.collect()
 			if !l.changed || l.opts.MaxFails == 0 {
 				l.newstat("idle")
-			} else if _, err := l.spec.ReasonAfter(l.t1, 0, l.opts.MinUptime, l.opts.Timeout); err != nil {
+			} else if force, err := l.spec.ReasonAfter(l.t1, 0, 0); err != nil {
+				l.debugf("filterbolt: players=%d bots=%d changed=%t reason=%s force=%t", players, bots, l.changed, err, force)
 				l.Cancel(err)
-				l.debugf("filterbolt: players=%d bots=%d changed=%t reason=%s", players, bots, l.changed, l.reason)
 			} else {
+				l.debugf("filterbolt: players=%d bots=%d changed=%t reason=%s", players, bots, l.changed, ErrLobbyIdleTimeout)
 				l.Cancel(ErrLobbyIdleTimeout)
-				l.debugf("filterbolt: players=%d bots=%d changed=%t reason=%s", players, bots, l.changed, l.reason)
 			}
 		case 9:
 			// Limit is 10 but 11 or even 12 people seen in the wild.
