@@ -69,7 +69,7 @@ func (l *Lobby) watcher(ctx context.Context) {
 			if reason == nil && l.opts.AdminTimeout > 0 && l.opts.AdminTimeout < since {
 				reason = ErrLobbyAdminTimeout
 			}
-		} else if l.opts.Timeout > 0 && l.opts.Timeout < since {
+		} else if reason == nil && l.opts.Timeout > 0 && l.opts.Timeout < since {
 			reason = ErrLobbyTimeout
 		}
 		if reason == nil {
