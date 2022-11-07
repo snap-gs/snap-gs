@@ -32,12 +32,19 @@ func init() {
 		heads = []string{os.Getenv("HOME")}
 		tails = []string{
 			"/snapshot_server_*.x86_64",
+			"/snapshot_server_*/snapshot_server_*.x86_64",
 			"/steamapps/common/Snapshot VR Dedicated Server/snapshot_server_*.x86_64",
+			"/steamapps/common/Snapshot VR Dedicated Server/snapshot_server_*/snapshot_server_*.x86_64",
 			"/Steam/steamapps/common/Snapshot VR Dedicated Server/snapshot_server_*.x86_64",
+			"/Steam/steamapps/common/Snapshot VR Dedicated Server/snapshot_server_*/snapshot_server_*.x86_64",
 			"/.steam/steamapps/common/Snapshot VR Dedicated Server/snapshot_server_*.x86_64",
+			"/.steam/steamapps/common/Snapshot VR Dedicated Server/snapshot_server_*/snapshot_server_*.x86_64",
 			"/.steam/root/steamapps/common/Snapshot VR Dedicated Server/snapshot_server_*.x86_64",
+			"/.steam/root/steamapps/common/Snapshot VR Dedicated Server/snapshot_server_*/snapshot_server_*.x86_64",
 			"/.steam/steam/steamapps/common/Snapshot VR Dedicated Server/snapshot_server_*.x86_64",
+			"/.steam/steam/steamapps/common/Snapshot VR Dedicated Server/snapshot_server_*/snapshot_server_*.x86_64",
 			"/.steam/debian-installation/steamapps/common/Snapshot VR Dedicated Server/snapshot_server_*.x86_64",
+			"/.steam/debian-installation/steamapps/common/Snapshot VR Dedicated Server/snapshot_server_*/snapshot_server_*.x86_64",
 		}
 	case "windows":
 		heads = []string{os.Getenv("SYSTEMDRIVE")}
