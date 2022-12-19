@@ -168,7 +168,6 @@ main () {
 		fi
 		sudo mv /opt/snap-gs/SnapshotVR/$i/env{.lock,}
 
-		sudo -u snap-gs rm -f /opt/snap-gs/SnapshotVR/$i/{self,peer} # TODO
 		sudo -u snap-gs rm -f /opt/snap-gs/SnapshotVR/$i/peer
 		sudo -u snap-gs rm -f /opt/snap-gs/SnapshotVR/$i/spec/{self,peer}
 		sudo -u snap-gs rm -f /opt/snap-gs/SnapshotVR/$i/spec/{,force}{{,re}start,stop,up,down}
