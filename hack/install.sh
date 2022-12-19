@@ -16,7 +16,6 @@ main () {
 			dpkg-db-backup.timer \
 			man-db.timer \
 			motd-news.timer \
-			ua-license-check.path \
 			ua-reboot-cmds.service \
 			ua-timer.timer \
 			unattended-upgrades.service \
