@@ -168,7 +168,6 @@ main () {
 		fi
 		sudo mv /opt/snap-gs/SnapshotVR/$i/env{.lock,}
 
-		sudo -u snap-gs rm -f /opt/snap-gs/SnapshotVR/$i/spec/peer
 		sudo -u snap-gs rm -f /opt/snap-gs/SnapshotVR/$i/spec/{,force}{{,re}start,stop,up,down}
 		sudo -u snap-gs ln -s -f -T ../flag /opt/snap-gs/SnapshotVR/$i/spec/flag
 		if [[ $n != 1 ]]; then
@@ -178,6 +177,8 @@ main () {
 				j=$((SNAPGS_INSTALL_LOBBIES[k-1]))
 			fi
 			sudo -u snap-gs ln -s -f -T ../../$j/stat /opt/snap-gs/SnapshotVR/$i/spec/peer
+		else
+			sudo -u snap-gs rm -f /opt/snap-gs/SnapshotVR/$i/spec/peer
 		fi
 
 		for x in /opt/snap-gs/SnapshotVR/$i/flag/{forcerestart,forcestop,restart,stop,session,password}; do
