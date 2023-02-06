@@ -86,8 +86,8 @@ main () {
 	fi
 	sudo mv /opt/snap-gs/SnapshotVR/snap-gs{.lock,}
 
-	ADDR=$(curl -s $AWS_METADATA_IDENTDOCURL | jq -er .privateIp)
-	ADDR1=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+	ADDR=$(curl --silent $AWS_METADATA_IDENTDOCURL | jq -er .privateIp)
+	ADDR1=$(curl --silent http://169.254.169.254/latest/meta-data/public-ipv4)
 	ACCEL=$(curl --silent http://169.254.169.254/latest/meta-data/network/interfaces/macs/)
 	ACCEL=$(curl --silent http://169.254.169.254/latest/meta-data/network/interfaces/macs/${ACCEL}subnet-id)
 	ACCEL=$(aws --region us-west-2 globalaccelerator list-custom-routing-port-mappings-by-destination \
