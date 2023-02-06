@@ -71,7 +71,7 @@ main () {
 
 	if ! [[ -d ~/snap-gs ]]; then
 		git -C ~ clone git@github.com:snap-gs/snap-gs
-	elif git -C ~/snap-gs diff --quiet origin/HEAD; then
+	elif [[ $SNAPGS_INSTALL_ACCOUNT == 051813673067 ]] && git -C ~/snap-gs diff --quiet origin/HEAD; then
 		git -C ~/snap-gs remote update --prune
 		git -C ~/snap-gs reset --hard origin/HEAD
 	fi
