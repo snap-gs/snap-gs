@@ -9,6 +9,8 @@ WantedBy=multi-user.target
 [Path]
 PathModified=/opt/snap-gs/%j/%i/flag/restart
 PathModified=/opt/snap-gs/%j/%i/spec/restart
+PathModified=/opt/snap-gs/%j/%i/flag/forcerestart
+PathModified=/opt/snap-gs/%j/%i/spec/forcerestart
 
 PathExists=/opt/snap-gs/%j/%i/flag/up
 PathExists=/opt/snap-gs/%j/%i/spec/up
