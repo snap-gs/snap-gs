@@ -10,6 +10,7 @@ Type=exec
 User=snap-gs
 Group=snap-gs
 BindPaths=/opt/snap-gs/%j/%i
+BindPaths=-/opt/snap-gs/%j/%i/hosts:/etc/hosts
 WorkingDirectory=/opt/snap-gs/%j/%i
 EnvironmentFile=-/opt/snap-gs/%j/%i/env
 Environment=HOME=/opt/snap-gs/%j/%i

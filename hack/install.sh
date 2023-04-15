@@ -5,6 +5,7 @@ IFS=; set -euo pipefail; shopt -s nullglob
 : ${AWS_METADATA_IDENTDOCURL:=http://169.254.169.254/latest/dynamic/instance-identity/document}
 : ${SNAPGS_INSTALL_S3SYNCURL:=https://github.com/larrabee/s3sync/releases/download/2.34/s3sync_2.34_Linux_x86_64.tar.gz}
 : ${SNAPGS_INSTALL_LOBBIES:=$(seq -s, $(lscpu --parse=CPU | grep -c '^[0-9]'))}
+IFS=, read -r -a SNAPGS_INSTALL_DISABLE <<<${SNAPGS_INSTALL_DISABLE-}
 IFS=, read -r -a SNAPGS_INSTALL_LOBBIES <<<$SNAPGS_INSTALL_LOBBIES
 
 main () {
@@ -102,6 +103,15 @@ main () {
 		let 'i=SNAPGS_INSTALL_LOBBIES[k]'
 
 		sudo -u snap-gs mkdir -p /opt/snap-gs/SnapshotVR/$i/{log,flag,stat,spec,sync}
+
+		for d in ${!SNAPGS_INSTALL_DISABLE[@]}; do
+			case ${SNAPGS_INSTALL_DISABLE[d]} in
+				"discord") echo "127.$((d+1)).$((d+1)).1 discord.com discordapp.com discord.gg";;
+				"stats")   echo "127.$((d+1)).$((d+1)).1 5xd0e4chtk.execute-api.us-east-1.amazonaws.com";;
+			esac
+		done | sudo -u snap-gs tee /opt/snap-gs/SnapshotVR/$i/hosts.lock > /dev/null
+		sudo -u snap-gs tee -a /opt/snap-gs/SnapshotVR/$i/hosts.lock < /etc/hosts > /dev/null
+		sudo mv /opt/snap-gs/SnapshotVR/$i/hosts{.lock,}
 
 		unset ${!SNAPGS_LOBBY_@}
 		SNAPGS_LOBBY_SESSION=
