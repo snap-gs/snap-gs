@@ -183,7 +183,8 @@ main () {
 
 		for x in /opt/snap-gs/SnapshotVR/$i/flag/{forcerestart,forcestop,restart,stop,session,password}; do
 			[[ -e $x ]] || sudo -u snap-gs touch $x
-			sudo -u snap-gs chmod 666 $x
+			[[ $(stat -c %a $x) == 666 ]] || sudo -u snap-gs chmod 666 $x
+			[[ ${x##*/flag/force} == $x || -s $x ]] || sudo -u snap-gs truncate -s0 $x
 		done
 		if [[ $i == 1 && $SNAPGS_LOBBY_SESSION != test\ * ]] && [[ ! $SNAPGS_LOBBY_PASSWORD || $n != 1 ]]; then
 			sudo -u snap-gs touch -a /opt/snap-gs/SnapshotVR/$i/flag/up
