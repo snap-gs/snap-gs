@@ -134,6 +134,11 @@ func (l *Lobby) filterjson(fd int, bs []byte) ([]byte, error) {
 	if m.MatchID != l.m.MatchID {
 		l.collect()
 	}
+	// Set match ASAP with current time.
+	m.Timestamp = l.m.Timestamp
+	// Advertise match before parsing.
+	l.m = m
+	defer l.newstat("match")
 	const layout = "3:04:05 PM"
 	i := strings.Index(m.MatchID, l.session)
 	if i == -1 || i == len(m.MatchID)-len(l.session) {
@@ -145,8 +150,8 @@ func (l *Lobby) filterjson(fd int, bs []byte) ([]byte, error) {
 		l.errorf("filterjson: time.Parse: error: %+v", err)
 		return truncate(bs, trunc), nil
 	}
-	defer l.newstat("match")
-	m.Timestamp, l.m = t, m
+	// Update match with parsed time.
+	l.m.Timestamp = t
 	return truncate(bs, trunc), nil
 }
 
