@@ -157,7 +157,6 @@ func (l *Lobby) filterjson(fd int, bs []byte) ([]byte, error) {
 
 func (l *Lobby) filterbolt(fd int, bs []byte) ([]byte, error) {
 	const (
-		creatingSession       = "-- BOLT -- Creating session: "
 		registeredPlayer      = "-- BOLT -- Registered player: "
 		unregisteredPlayer    = "-- BOLT -- Unregistered player: "
 		loadingArenaName      = "-- BOLT -- Loading arena name: "
@@ -167,12 +166,6 @@ func (l *Lobby) filterbolt(fd int, bs []byte) ([]byte, error) {
 		remoteCallbacks       = "-- BOLT -- REMOTE CALLBACKS "
 	)
 	switch {
-	case len(bs) != len(creatingSession) && bytes.HasPrefix(bs, []byte(creatingSession)):
-		l.session = string(bs[len(creatingSession):])
-		// TODO: Atomicity.
-		l.remstat("session")
-		l.setstat("session", l.session)
-		l.debugf("filterbolt: session=%s", l.session)
 	case len(bs) != len(loadingArenaName) && bytes.HasPrefix(bs, []byte(loadingArenaName)):
 		l.arena = string(bs[len(loadingArenaName):])
 		// TODO: Atomicity.

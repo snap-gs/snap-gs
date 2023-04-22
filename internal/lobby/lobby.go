@@ -142,11 +142,12 @@ func (l *Lobby) Cancel(reason error) error {
 }
 
 func (l *Lobby) alloc(ctx context.Context) (func(), error) {
+	session := strings.ReplaceAll(l.opts.Session, " ", "\u00a0")
 	var err error
 	args := append(
 		strings.Split(l.opts.Exe, ","),
 		"-nographics", "-batchmode",
-		"--roomname", strings.ReplaceAll(l.opts.Session, " ", "\u00a0"),
+		"--roomname", session,
 	)
 	if l.opts.LogDir != "" {
 		args = append(args, "-logMatchData")
@@ -217,7 +218,7 @@ func (l *Lobby) alloc(ctx context.Context) (func(), error) {
 	}
 	// Committed to run from here.
 	l.done = make(chan struct{})
-	l.session, l.players = "", Players{}
+	l.session, l.players = session, Players{}
 	l.reason, l.matches = nil, make(chan *match.Match, 10)
 	// Empty 'id' with nonempty 'at' time informs idle lobby watchers of the
 	// most-recent push time when no match is currently in progress.
@@ -228,6 +229,9 @@ func (l *Lobby) alloc(ctx context.Context) (func(), error) {
 	if outfile != nil {
 		l.c.Stdout = io.MultiWriter(l.pwout, outfile)
 	}
+	// TODO: Atomicity.
+	l.remstat("session")
+	l.setstat("session", l.session)
 	self, err := os.Executable()
 	if err != nil {
 		return done, nil
