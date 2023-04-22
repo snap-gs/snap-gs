@@ -229,9 +229,6 @@ func (l *Lobby) alloc(ctx context.Context) (func(), error) {
 	if outfile != nil {
 		l.c.Stdout = io.MultiWriter(l.pwout, outfile)
 	}
-	// TODO: Atomicity.
-	l.remstat("session")
-	l.setstat("session", l.session)
 	self, err := os.Executable()
 	if err != nil {
 		return done, nil
@@ -273,6 +270,7 @@ func (l *Lobby) runc(ctx context.Context) error {
 	defer l.pwerr.Close()
 	defer l.pwout.Close()
 	defer l.Cancel(ErrLobbyDone)
+	l.setstat("session", l.session)
 	l.debugf("runc: c=%s", l.c)
 	if err := l.c.Start(); err != nil {
 		return l.Cancel(err)
