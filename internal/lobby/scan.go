@@ -139,7 +139,7 @@ func (l *Lobby) filterjson(fd int, bs []byte) ([]byte, error) {
 	// Advertise match before parsing.
 	l.m = m
 	defer l.newstat("match")
-	const layout = "3:04:05 PM"
+	const layout = "1/2/2006 3:04:05 PM"
 	i := strings.Index(m.MatchID, l.session)
 	if i == -1 || i == len(m.MatchID)-len(l.session) {
 		l.errorf("filterjson: discard (mismatched): id=%s session=%s", m.MatchID, l.session)
