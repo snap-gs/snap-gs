@@ -147,6 +147,7 @@ func (l *Lobby) alloc(ctx context.Context) (func(), error) {
 	args := append(
 		strings.Split(l.opts.Exe, ","),
 		"-nographics", "-batchmode",
+		"--hitdetectionmode", "authoritative",
 		"--roomname", session,
 	)
 	if l.opts.LogDir != "" {
