@@ -185,6 +185,8 @@ func (l *Lobby) filterbolt(fd int, bs []byte) ([]byte, error) {
 			} else if players != 0 {
 				l.setstat("players", players)
 			}
+		} else {
+			defer l.Cancel(ErrLobbyBug)
 		}
 		l.debugf("filterbolt: players=%d bots=%d id=+%d admin=%t", players, bots, id, admin)
 		switch players {
@@ -208,6 +210,8 @@ func (l *Lobby) filterbolt(fd int, bs []byte) ([]byte, error) {
 			} else if players != 0 {
 				l.setstat("players", players)
 			}
+		} else {
+			defer l.Cancel(ErrLobbyBug)
 		}
 		if admin && l.m.MatchID == "" {
 			// Reset admin timeout when admin changes.

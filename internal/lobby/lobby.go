@@ -20,6 +20,7 @@ import (
 
 var (
 	ErrLobbyBad          = errors.New("lobby bad")
+	ErrLobbyBug          = errors.New("lobby bug")
 	ErrLobbyDone         = errors.New("lobby done")
 	ErrLobbyIdleTimeout  = errors.New("lobby idle timeout")
 	ErrLobbyDisconnected = errors.New("lobby disconnected")
