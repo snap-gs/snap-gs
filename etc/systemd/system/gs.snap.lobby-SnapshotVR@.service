@@ -40,6 +40,7 @@ ExecStartPre=/usr/bin/cp -a ../snap-gs snap-gs
 ExecStart=/opt/snap-gs/%j/%i/snap-gs lobby
 
 # Latency/Availability.
+TimeoutStartSec=180s
 RestartForceExitStatus=NOTCONFIGURED
 SuccessExitStatus=NOTCONFIGURED
 CPUQuotaPeriodSec=1ms
